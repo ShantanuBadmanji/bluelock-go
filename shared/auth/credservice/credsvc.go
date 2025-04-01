@@ -8,41 +8,50 @@ import (
 	"github.com/bluelock-go/shared/auth"
 )
 
-type AuthTokens struct {
-	DatapullCredentials       []auth.Credential `json:"datapullCredentials"`
-	CommitAnalysisCredentials []auth.Credential `json:"commitAnalysisCredentials"`
-}
+type AuthCredentialStore map[string][]auth.Credential
 
-func LoadAuthTokensFromFile(filePath string) (*AuthTokens, error) {
+const (
+	DatapullCredentialsKey       = "datapullCredentials"
+	CommitAnalysisCredentialsKey = "commitAnalysisCredentials"
+)
+
+func LoadAuthTokensFromFile(filePath string) (AuthCredentialStore, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	var tokens AuthTokens
-	if err := json.Unmarshal(data, &tokens); err != nil {
+	var credStore AuthCredentialStore
+	if err := json.Unmarshal(data, &credStore); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
-	// Validate the loaded tokens
-	// Validate datapull credentials
-	if tokens.DatapullCredentials == nil {
-		return nil, fmt.Errorf("datapull credentials are required")
+	// Validate the loaded credentials
+	if credStore == nil {
+		return nil, fmt.Errorf("credential store is nil")
 	}
-	for _, cred := range tokens.DatapullCredentials {
-		if cred.GetUsername() == "" || cred.GetPassword() == "" {
-			return nil, fmt.Errorf("invalid datapull credentials: username and password must not be empty")
-		}
+	if len(credStore) == 0 {
+		return nil, fmt.Errorf("credential store is empty")
+	}
+	if _, ok := credStore[DatapullCredentialsKey]; !ok {
+		return nil, fmt.Errorf("missing required key: %s", DatapullCredentialsKey)
 	}
 
-	// Validate commit analysis credentials if they exist
-	if tokens.CommitAnalysisCredentials != nil {
-		for _, cred := range tokens.CommitAnalysisCredentials {
+	for key, creds := range credStore {
+		for _, cred := range creds {
 			if cred.GetUsername() == "" || cred.GetPassword() == "" {
-				return nil, fmt.Errorf("invalid commit analysis credentials: username and password must not be empty")
+				return nil, fmt.Errorf("invalid credentials for key %s: username and password must not be empty", key)
 			}
 		}
 	}
 
-	return &tokens, nil
+	// populate the CredKey for each credential
+	for key, creds := range credStore {
+		for i := range creds {
+			creds[i].GenerateCredKey()
+		}
+		credStore[key] = creds
+	}
+
+	return credStore, nil
 }

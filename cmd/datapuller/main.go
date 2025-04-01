@@ -28,7 +28,7 @@ func main() {
 	// Load authentication tokens
 	customLogger.Info("Loading authentication tokens...")
 	authTokensFilePath := filepath.Join(shared.RootDir, "secrets", "auth_tokens.json")
-	authTokens, err := credservice.LoadAuthTokensFromFile(authTokensFilePath)
+	credStore, err := credservice.LoadAuthTokensFromFile(authTokensFilePath)
 	if err != nil {
 		customLogger.Logger.Error("Failed to load authentication tokens", "error", err)
 		os.Exit(1)
@@ -49,7 +49,7 @@ func main() {
 
 	// Sync token status with the latest authentication credentials
 	customLogger.Info("Syncing token status with latest authentication credentials...")
-	if err := stateManager.SyncTokenStatusWithLatestAuthCredentials(authTokens.DatapullCredentials); err != nil {
+	if err := stateManager.SyncTokenStatusWithLatestAuthCredentials(credStore[credservice.DatapullCredentialsKey]); err != nil {
 		customLogger.Logger.Error("Failed to sync token status with latest authentication credentials", "error", err)
 		os.Exit(1)
 	} else {
