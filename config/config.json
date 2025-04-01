@@ -1,0 +1,33 @@
+{
+    "activeService": "BitbucketCloud | BitbucketServer | Github | Jenkins",
+    "integrations": {
+        "bitbucketServer": {
+            "url": "http://bitbucket-server.local",
+            "port": 7990
+        },
+        "jenkins": {
+            "url": "http://jenkins.local",
+            "port": 8765
+        },
+        "bitbucketCloud": {
+            "workspace": "my_workspace"
+        },
+        "github": {
+            "url": "https://api.github.com",
+            "port": 443
+        }
+    },
+    "common": {
+        "cronExpression": "0 * * * *",
+        "reworkThresholdDays": 21,
+        "orgCode": "<ORG_CODE>"
+    },
+    "defaults": {
+        "requestSizeThresholdInBytes": 150000,
+        "defaultDataPullDays": 31,
+        "waitingTimeForRateLimitInSeconds": 3600
+    },
+    "secrets": {
+        "ddApiKey": "<DD_API_KEY>"
+    }
+}

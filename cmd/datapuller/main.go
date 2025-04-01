@@ -12,10 +12,6 @@ import (
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
-const (
-	cronExpr = "0 * * * *" // Every hour
-)
-
 func main() {
 	appLoggerFilePath := filepath.Join(shared.RootDir, "logs", "datapuller.log")
 
@@ -35,11 +31,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	configFilePath := filepath.Join(shared.RootDir, "config", "config.json")
+	cfg, err := config.NewConfig(configFilePath)
+	if err != nil {
+		customLogger.Logger.Error("Failed to load configuration", "error", err)
+		os.Exit(1)
+	}
+	customLogger.Info("Configuration loaded", "configFilePath", configFilePath)
+	err = cfg.Validate()
+	if err != nil {
+		customLogger.Logger.Error("Invalid configuration", "error", err)
+		os.Exit(1)
+	}
+	customLogger.Info("Configuration validated.", "config", cfg)
+
+
 	// initialte services
 	bitbucketcloudSvc := bitbucketcloud.NewBitbucketCloudSvc(customLogger, stateManager)
 
 	// Initialize the job scheduler
-	scheduler, err := jobscheduler.NewJobScheduler(customLogger, stateManager, "datapuller", bitbucketcloudSvc.RunJob, &config.Config{CronExpr: cronExpr})
+	scheduler, err := jobscheduler.NewJobScheduler(customLogger, stateManager, "datapuller", bitbucketcloudSvc.RunJob, cfg)
 	if err != nil {
 		customLogger.Error("Failed to initialize job scheduler", "error", err)
 		os.Exit(1)

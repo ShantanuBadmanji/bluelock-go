@@ -61,7 +61,7 @@ func (js *JobScheduler) Run() {
 
 	for {
 		// Parse the cron expression
-		schedule, err := cron.ParseStandard(js.config.CronExpr)
+		schedule, err := cron.ParseStandard(js.config.Common.CronExpression)
 		if err != nil {
 			js.logger.Error("Invalid cron expression", "error", err)
 			return
