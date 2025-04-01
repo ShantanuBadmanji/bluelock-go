@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/storage/state/token"
 )
 
@@ -57,6 +58,31 @@ func (sm *StateManager) LoadState() error {
 	}
 
 	return json.Unmarshal(data, &sm.State)
+}
+
+// Sync ToekenStatus With Latest Auth Credentials
+func (sm *StateManager) SyncTokenStatusWithLatestAuthCredentials(credentials []auth.Credential) error {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	// Create a map to store the latest token states
+	latestTokenStates := make(map[string]token.TokenState)
+
+	// Iterate through the credentials and update the token states
+	for _, cred := range credentials {
+		// TODO: Create a creadKey and use it as the key in the map.
+		tokenID := cred.GetUsername()
+		tokenState, exists := sm.State.TokenStates[tokenID]
+		if !exists {
+			tokenState = token.TokenState{}
+		}
+		tokenState.UpdateTokenStatus(token.TokenActive, time.Now())
+		latestTokenStates[tokenID] = tokenState
+	}
+
+	sm.State.TokenStates = latestTokenStates
+
+	return sm.saveState()
 }
 
 // saveState writes the state to a JSON file

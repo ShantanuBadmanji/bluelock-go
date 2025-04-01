@@ -16,7 +16,7 @@ import (
 type JobScheduler struct {
 	logger       *shared.CustomLogger
 	stateManager *statemanager.StateManager
-	jobName      string
+	JobName      string
 	job          func()
 	config       *config.Config
 }
@@ -30,14 +30,14 @@ func NewJobScheduler(customLogger *shared.CustomLogger, stateManager *statemanag
 	return &JobScheduler{
 		logger:       customLogger,
 		stateManager: stateManager,
-		jobName:      jobName,
+		JobName:      jobName,
 		job:          job,
 		config:       config,
 	}, nil
 }
 
 func (js *JobScheduler) Run() {
-	js.logger.Info("Starting job scheduler")
+	js.logger.Info(fmt.Sprintf("Running the job: %s", js.JobName))
 
 	// Set up signal handling
 	sigChan := make(chan os.Signal, 1)
