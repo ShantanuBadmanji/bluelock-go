@@ -1,0 +1,17 @@
+{
+	"lastJobExecutionStartTime": "2025-03-30T13:07:30.740786+05:30",
+	"lastJobExecutionEndTime": "2025-03-30T13:07:35.742898+05:30",
+	"ongoingJobStartTime": "2025-03-30T13:07:30.740786+05:30",
+	"rateLimitResetAt": "0001-01-01T00:00:00Z",
+	"cooldownCompletedAt": "0001-01-01T00:00:00Z",
+	"tokenStates": {
+		"token1": {
+			"lastUsageAt": "0001-01-01T00:00:00Z",
+			"exhaustedAt": "0001-01-01T00:00:00Z",
+			"status": "active",
+			"statusChangedAt": "0001-01-01T00:00:00Z",
+			"successfulUsageCount": 10,
+			"preRateLimitSuccessCount": 899
+		}
+	}
+}
