@@ -67,14 +67,16 @@ func (js *JobScheduler) Run() {
 			return
 		}
 
-		// Calculate the next run time based on the cron expression
-		now := time.Now()
-		nextRun := schedule.Next(now)
-		js.logger.Info("Next job scheduled", "time", nextRun.Format(time.RFC3339))
+		// Calculate the next run time based on the cron expression if not the first run
+		if !js.stateManager.State.LastJobExecutionEndTime.IsZero() {
+			now := time.Now()
+			nextRun := schedule.Next(now)
+			js.logger.Info("Next job scheduled", "time", nextRun.Format(time.RFC3339))
 
-		// Sleep until the next scheduled time
-		sleepDuration := time.Until(nextRun)
-		time.Sleep(sleepDuration)
+			// Sleep until the next scheduled time
+			sleepDuration := time.Until(nextRun)
+			time.Sleep(sleepDuration)
+		}
 
 		// Start the job
 		js.stateManager.UpdateOngoingJobStartTime(time.Now())
