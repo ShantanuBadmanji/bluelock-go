@@ -5,7 +5,7 @@
 	"rateLimitResetAt": "0001-01-01T00:00:00Z",
 	"cooldownCompletedAt": "0001-01-01T00:00:00Z",
 	"tokenStates": {
-		"token1": {
+		"user_1:password_1": {
 			"lastUsageAt": "0001-01-01T00:00:00Z",
 			"exhaustedAt": "0001-01-01T00:00:00Z",
 			"status": "active",
