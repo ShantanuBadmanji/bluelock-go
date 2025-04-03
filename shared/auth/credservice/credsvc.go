@@ -39,7 +39,7 @@ func LoadAuthTokensFromFile(filePath string) (AuthCredentialStore, error) {
 
 	for key, creds := range credStore {
 		for _, cred := range creds {
-			if cred.GetUsername() == "" || cred.GetPassword() == "" {
+			if cred.Username == "" || cred.Password == "" {
 				return nil, fmt.Errorf("invalid credentials for key %s: username and password must not be empty", key)
 			}
 		}
