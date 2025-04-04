@@ -70,7 +70,7 @@ func (sm *StateManager) SyncTokenStatusWithLatestAuthCredentials(credentials []a
 
 	// Iterate through the credentials and update the token states
 	for _, cred := range credentials {
-		tokenID := cred.GenerateCredKey()
+		tokenID := cred.CredKey
 		tokenState, exists := sm.State.TokenStates[tokenID]
 		if !exists {
 			tokenState = token.TokenState{}

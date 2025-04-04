@@ -30,3 +30,4 @@ go.work.sum
 # state persistence files
 datapuller.json
 auth_tokens.json
+auth_tokens.backup.json

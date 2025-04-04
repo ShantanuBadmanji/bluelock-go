@@ -28,7 +28,7 @@ func main() {
 	// Load authentication tokens
 	customLogger.Info("Loading authentication tokens...")
 	authTokensFilePath := filepath.Join(shared.RootDir, "secrets", "auth_tokens.json")
-	credStore, err := credservice.LoadAuthTokensFromFile(authTokensFilePath)
+	credStore, _, err := credservice.LoadAuthTokensFromFileAndValidate(authTokensFilePath)
 	if err != nil {
 		customLogger.Logger.Error("Failed to load authentication tokens", "error", err)
 		os.Exit(1)

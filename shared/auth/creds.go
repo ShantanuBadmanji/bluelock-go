@@ -1,9 +1,11 @@
 package auth
 
+import "encoding/base64"
+
 type Credential struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-	credKey  string
+	CredKey  string `json:"credKey"`
 }
 
 func NewCredentials(username, password string) *Credential {
@@ -13,17 +15,13 @@ func NewCredentials(username, password string) *Credential {
 	}
 }
 
-func (c *Credential) GetCredKey() string {
-	return c.credKey
-}
-
 func (c *Credential) GetCredential() (string, string) {
 	return c.Username, c.Password
 }
 
-func (c *Credential) GenerateCredKey() string {
-	if c.credKey == "" {
-		c.credKey = c.Username + ":" + c.Password
+func (c *Credential) GenerateCredKeyIfAbsent() string {
+	if c.CredKey == "" {
+		c.CredKey = base64.StdEncoding.EncodeToString([]byte(c.Username + ":" + c.Password))
 	}
-	return c.credKey
+	return c.CredKey
 }
