@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/bluelock-go/config"
-	"github.com/bluelock-go/integrations/bitbucket/bitbucketcloud"
+	"github.com/bluelock-go/integrations"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth/credservice"
 	"github.com/bluelock-go/shared/jobscheduler"
@@ -67,27 +67,35 @@ func main() {
 		customLogger.Info("Configuration loaded successfully", "configFilePath", configFilePath)
 	}
 
-	customLogger.Info("Validating configuration...")
+	customLogger.Info("Validating defaults and common configuration...")
 	if err = cfg.ValidateDefaultsAndCommonConfig(); err != nil {
-		customLogger.Logger.Error("Invalid configuration", "error", err)
+		customLogger.Logger.Error("Invalid defaults or common configuration", "error", err)
 		os.Exit(1)
 	} else {
-		customLogger.Info("Configuration validated successfully")
+		customLogger.Info("Defaults and common configuration validated successfully")
 	}
 
 	// initialte services
 	customLogger.Info("Initializing Services...")
-	bitbucketcloudSvc := bitbucketcloud.NewBitbucketCloudSvc(customLogger, stateManager, cfg)
-	if err := bitbucketcloudSvc.ValidateEnvVariables(); err != nil {
-		customLogger.Logger.Error("Failed to validate environment variables for Bitbucket Cloud", "error", err)
+	customLogger.Info("Initializing Datapull Integration Service...")
+	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(cfg, customLogger, stateManager)
+	if err != nil {
+		customLogger.Logger.Error("Failed to initialize active integration service", "error", err)
+		os.Exit(1)
+	}
+	customLogger.Info("Datapull Integration Service initialized successfully")
+
+	customLogger.Info("Validating environment variables for integration service...")
+	if err := datapullIntegrationSvc.ValidateEnvVariables(); err != nil {
+		customLogger.Logger.Error("Failed to validate environment variables for integration service", "error", err)
 		os.Exit(1)
 	} else {
-		customLogger.Info("Environment variables validated successfully for Bitbucket Cloud")
+		customLogger.Info("Environment variables validated successfully for integration service")
 	}
 	customLogger.Info("Initialized All Services Successfully")
 
 	// Initialize the job scheduler
-	scheduler, err := jobscheduler.NewJobScheduler(customLogger, stateManager, "Datapull", bitbucketcloudSvc.RunJob, cfg)
+	scheduler, err := jobscheduler.NewJobScheduler(customLogger, stateManager, "Datapull", datapullIntegrationSvc.RunJob, cfg)
 	if err != nil {
 		customLogger.Error("Failed to initialize job scheduler", "error", err)
 		os.Exit(1)
