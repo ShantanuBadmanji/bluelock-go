@@ -68,7 +68,7 @@ func main() {
 	}
 
 	customLogger.Info("Validating configuration...")
-	if err = cfg.Validate(); err != nil {
+	if err = cfg.ValidateDefaultsAndCommonConfig(); err != nil {
 		customLogger.Logger.Error("Invalid configuration", "error", err)
 		os.Exit(1)
 	} else {
@@ -77,7 +77,13 @@ func main() {
 
 	// initialte services
 	customLogger.Info("Initializing Services...")
-	bitbucketcloudSvc := bitbucketcloud.NewBitbucketCloudSvc(customLogger, stateManager)
+	bitbucketcloudSvc := bitbucketcloud.NewBitbucketCloudSvc(customLogger, stateManager, cfg)
+	if err := bitbucketcloudSvc.ValidateEnvVariables(); err != nil {
+		customLogger.Logger.Error("Failed to validate environment variables for Bitbucket Cloud", "error", err)
+		os.Exit(1)
+	} else {
+		customLogger.Info("Environment variables validated successfully for Bitbucket Cloud")
+	}
 	customLogger.Info("Initialized All Services Successfully")
 
 	// Initialize the job scheduler

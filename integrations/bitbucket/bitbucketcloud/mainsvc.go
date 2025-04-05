@@ -3,6 +3,7 @@ package bitbucketcloud
 import (
 	"time"
 
+	"github.com/bluelock-go/config"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
@@ -10,10 +11,11 @@ import (
 type BitbucketCloudSvc struct {
 	logger       *shared.CustomLogger
 	stateManager *statemanager.StateManager
+	config       *config.Config
 }
 
-func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanager.StateManager) *BitbucketCloudSvc {
-	return &BitbucketCloudSvc{logger, stateManager}
+func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanager.StateManager, config *config.Config) *BitbucketCloudSvc {
+	return &BitbucketCloudSvc{logger, stateManager, config}
 }
 
 func (bcSvc *BitbucketCloudSvc) ValidateEnvVariables() error {

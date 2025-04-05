@@ -105,7 +105,7 @@ func loadConfigFromFile(filePath string, config *Config) error {
 	return json.Unmarshal(data, config)
 }
 
-func (c *Config) Validate() error {
+func (c *Config) ValidateDefaultsAndCommonConfig() error {
 	// Add validation logic here
 	if c.ActiveService == "" {
 		return fmt.Errorf("activeService is required")
