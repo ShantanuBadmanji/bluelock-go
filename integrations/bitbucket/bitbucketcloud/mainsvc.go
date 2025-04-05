@@ -1,6 +1,7 @@
 package bitbucketcloud
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/bluelock-go/config"
@@ -18,14 +19,30 @@ func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanage
 	return &BitbucketCloudSvc{logger, stateManager, config}
 }
 
+func (bcSvc *BitbucketCloudSvc) GetLogger() *shared.CustomLogger {
+	return bcSvc.logger
+}
+func (bcSvc *BitbucketCloudSvc) GetConfig() *config.Config {
+	return bcSvc.config
+}
+func (bcSvc *BitbucketCloudSvc) GetStateManager() *statemanager.StateManager {
+	return bcSvc.stateManager
+}
+
 func (bcSvc *BitbucketCloudSvc) ValidateEnvVariables() error {
 	bcSvc.logger.Info("Validating environment variables for Bitbucket Cloud...")
-	// Add validation logic here
+
+	BitbucketCloudConfig := bcSvc.config.Integrations.BitbucketCloud
+	if BitbucketCloudConfig.Workspace == "" {
+		return fmt.Errorf("bitbucket Cloud workspace is not set in the configuration")
+	}
+
 	return nil
 }
 
-func (bcSvc *BitbucketCloudSvc) RunJob() {
+func (bcSvc *BitbucketCloudSvc) RunJob() error {
 	bcSvc.logger.Info("Bitbucket Cloud job started...")
 	time.Sleep(time.Second * 5)
 	bcSvc.logger.Info("Bitbucket Cloud job completed.")
+	return nil
 }

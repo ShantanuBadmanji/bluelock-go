@@ -17,11 +17,11 @@ type JobScheduler struct {
 	logger       *shared.CustomLogger
 	stateManager *statemanager.StateManager
 	JobName      string
-	job          func()
+	job          func() error
 	config       *config.Config
 }
 
-func NewJobScheduler(customLogger *shared.CustomLogger, stateManager *statemanager.StateManager, jobName string, job func(),
+func NewJobScheduler(customLogger *shared.CustomLogger, stateManager *statemanager.StateManager, jobName string, job func() error,
 	config *config.Config) (*JobScheduler, error) {
 	if customLogger == nil {
 		return nil, fmt.Errorf("custom logger is nil")
@@ -81,8 +81,17 @@ func (js *JobScheduler) Run() {
 		// Start the job
 		js.stateManager.UpdateOngoingJobStartTime(time.Now())
 		js.logger.Info("Job started", "time", time.Now().Format(time.RFC3339))
-		js.job()
+
+		err = js.job()
+
 		js.stateManager.UpdateLastJobExecutionTime(time.Now())
 		js.logger.Info("Job completed", "time", time.Now().Format(time.RFC3339))
+
+		if err != nil {
+			js.logger.Error("Job execution failed: job", "jobName", js.JobName, "error", err)
+			os.Exit(1)
+		} else {
+			js.logger.Info("Job execution completed successfully", "jobName", js.JobName)
+		}
 	}
 }
