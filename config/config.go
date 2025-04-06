@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+
+	"github.com/bluelock-go/shared"
 )
 
 type ServiceKey string
@@ -74,14 +77,16 @@ type Secrets struct {
 	DDApiKey string `json:"ddApiKey"`
 }
 
-func NewConfig(filePath string) (*Config, error) {
-	config := &Config{
-		Defaults: Defaults{
-			RequestSizeThresholdInBytes:      200 * 1024, // 200KB
-			DefaultDataPullDays:              30,
-			WaitingTimeForRateLimitInSeconds: 3600,
-		},
+func NewDefaults() *Defaults {
+	return &Defaults{
+		RequestSizeThresholdInBytes:      200 * 1024, // 200KB
+		DefaultDataPullDays:              30,
+		WaitingTimeForRateLimitInSeconds: 3600,
 	}
+}
+
+func NewConfig(filePath string) (*Config, error) {
+	config := &Config{}
 	// Load configuration from JSON file or environment variables
 	// For example, you can use encoding/json to unmarshal a JSON file into the config struct
 	// Or use os.Getenv to load environment variables into the config struct
@@ -93,6 +98,98 @@ func NewConfig(filePath string) (*Config, error) {
 	}
 
 	return config, nil
+}
+
+func LoadMergedConfig() (*Config, error) {
+	defaultConfigFilePath := filepath.Join(shared.RootDir, "config", "config.json")
+
+	defaultConfig, err := NewConfig(defaultConfigFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the loaded configuration
+	err = defaultConfig.ValidateDefaultsAndCommonConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	userConfigFilePath := filepath.Join(shared.RootDir, "config", "config.user.json")
+	userConfig, err := NewConfig(userConfigFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the loaded user configuration
+	isValidServiceKey := IsValidServiceKey(userConfig.ActiveService)
+	if !isValidServiceKey {
+		return nil, fmt.Errorf("invalid activeService key: %s", userConfig.ActiveService)
+	}
+
+	// Merge user configuration with default configuration
+	mergedConfig := &Config{}
+
+	// Copy default config values
+	*mergedConfig = *defaultConfig
+	mergedConfig.ActiveService = userConfig.ActiveService
+	switch mergedConfig.ActiveService {
+	case BitbucketServerKey:
+		if userConfig.Integrations.BitbucketServer.URL == "" {
+			return nil, fmt.Errorf("bitbucketServer URL is required")
+		}
+		mergedConfig.Integrations.BitbucketServer = userConfig.Integrations.BitbucketServer
+	case BitbucketCloudKey:
+		if userConfig.Integrations.BitbucketCloud.Workspace == "" {
+			return nil, fmt.Errorf("bitbucketCloud Workspace is required")
+		}
+		mergedConfig.Integrations.BitbucketCloud = userConfig.Integrations.BitbucketCloud
+	case GithubKey:
+		if userConfig.Integrations.Github.URL != defaultConfig.Integrations.Github.URL {
+			mergedConfig.Integrations.Github = userConfig.Integrations.Github
+		}
+	case JenkinsKey:
+		if userConfig.Integrations.Jenkins.URL == "" {
+			return nil, fmt.Errorf("jenkins URL is required")
+		}
+		mergedConfig.Integrations.Jenkins = userConfig.Integrations.Jenkins
+	default:
+		return nil, fmt.Errorf("unsupported service key: %s", userConfig.ActiveService)
+	}
+
+	// Merge common values
+	if userConfig.Common.OrgCode == "" {
+		return nil, fmt.Errorf("orgCode is required")
+	} else {
+		mergedConfig.Common.OrgCode = defaultConfig.Common.OrgCode
+	}
+
+	if userConfig.Common.CronExpression != "" {
+		mergedConfig.Common.CronExpression = userConfig.Common.CronExpression
+	}
+	if userConfig.Common.ReworkThresholdDays != 0 {
+		mergedConfig.Common.ReworkThresholdDays = userConfig.Common.ReworkThresholdDays
+	}
+
+	// Merge default values
+	if userConfig.Defaults.RequestSizeThresholdInBytes != 0 {
+		mergedConfig.Defaults.RequestSizeThresholdInBytes = userConfig.Defaults.RequestSizeThresholdInBytes
+	}
+	if userConfig.Defaults.DefaultDataPullDays != 0 {
+		mergedConfig.Defaults.DefaultDataPullDays = userConfig.Defaults.DefaultDataPullDays
+	}
+	if userConfig.Defaults.WaitingTimeForRateLimitInSeconds != 0 {
+		mergedConfig.Defaults.WaitingTimeForRateLimitInSeconds = userConfig.Defaults.WaitingTimeForRateLimitInSeconds
+	}
+	if userConfig.Secrets.DDApiKey != "" {
+		mergedConfig.Secrets.DDApiKey = userConfig.Secrets.DDApiKey
+	}
+	// Validate the merged configuration
+	err = mergedConfig.ValidateDefaultsAndCommonConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	return mergedConfig, nil
 }
 
 func loadConfigFromFile(filePath string, config *Config) error {

@@ -58,13 +58,12 @@ func main() {
 
 	// Load and validate the configuration
 	customLogger.Info("Loading configuration...")
-	configFilePath := filepath.Join(shared.RootDir, "config", "config.json")
-	cfg, err := config.NewConfig(configFilePath)
+	cfg, err := config.LoadMergedConfig()
 	if err != nil {
 		customLogger.Logger.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	} else {
-		customLogger.Info("Configuration loaded successfully", "configFilePath", configFilePath)
+		customLogger.Info("Configuration loaded successfully")
 	}
 
 	customLogger.Info("Validating defaults and common configuration...")

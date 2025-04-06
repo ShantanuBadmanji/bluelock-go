@@ -32,3 +32,4 @@ datapuller.json
 auth_tokens.json
 auth_tokens.backup.json
 secrets/auth_tokens.json.lock
+config/config.user.json

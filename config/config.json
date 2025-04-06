@@ -1,5 +1,5 @@
 {
-    "activeService": "BitbucketCloud",
+    "activeService": "BitbucketCloud | GitHub | BitbucketServer | Jenkins",
     "integrations": {
         "bitbucketServer": {
             "url": "http://bitbucket-server.local",
