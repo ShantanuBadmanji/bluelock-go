@@ -121,9 +121,8 @@ func LoadMergedConfig() (*Config, error) {
 	}
 
 	// Validate the loaded user configuration
-	isValidServiceKey := IsValidServiceKey(userConfig.ActiveService)
-	if !isValidServiceKey {
-		return nil, fmt.Errorf("invalid activeService key: %s", userConfig.ActiveService)
+	if err = userConfig.ValidateUserConfig(defaultConfig); err != nil {
+		return nil, err
 	}
 
 	// Merge user configuration with default configuration
@@ -224,6 +223,27 @@ func (c *Config) ValidateDefaultsAndCommonConfig() error {
 	if c.Defaults.WaitingTimeForRateLimitInSeconds <= 0 {
 		return fmt.Errorf("waitingTimeForRateLimitInSeconds must be greater than 0")
 	}
+	return nil
+}
+
+func (c *Config) ValidateUserConfig(defaultConfig *Config) error {
+	// Add validation logic for user config here
+	if c.ActiveService == "" {
+		return fmt.Errorf("activeService is required")
+	}
+	if !IsValidServiceKey(c.ActiveService) {
+		return fmt.Errorf("invalid activeService key: %s", c.ActiveService)
+	}
+	if c.Common.OrgCode == "" {
+		return fmt.Errorf("orgCode is required")
+	}
+	if c.Common.OrgCode == defaultConfig.Common.OrgCode {
+		return fmt.Errorf("update the default orgCode: %s", defaultConfig.Common.OrgCode)
+	}
+	if c.Common.ReworkThresholdDays != 0 && c.Common.ReworkThresholdDays <= 0 {
+		return fmt.Errorf("reworkThresholdDays must be greater than 0")
+	}
+
 	return nil
 }
 
