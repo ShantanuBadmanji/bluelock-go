@@ -2,12 +2,14 @@ package statemanager
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/bluelock-go/shared/auth"
+	"github.com/bluelock-go/shared/customerrors"
 	"github.com/bluelock-go/shared/storage/state/token"
 )
 
@@ -145,10 +147,25 @@ func (sm *StateManager) SetTokenStatusToRateLimited(tokenID string) error {
 
 	token, exists := sm.State.TokenStates[tokenID]
 	if !exists {
-		return fmt.Errorf("token %s not found", tokenID)
+		return fmt.Errorf("tokenID %s: %w", tokenID, ErrTokenNotFound)
 	}
 
 	token.SetTokenAsExhausted(currentTime)
+	sm.State.TokenStates[tokenID] = token
+
+	return sm.saveState()
+}
+func (sm *StateManager) SetTokenStatusToUnauthorized(tokenID string) error {
+	currentTime := time.Now()
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	token, exists := sm.State.TokenStates[tokenID]
+	if !exists {
+		return fmt.Errorf("tokenID %s: %w", tokenID, ErrTokenNotFound)
+	}
+
+	token.SetTokenAsUnauthorized(currentTime)
 	sm.State.TokenStates[tokenID] = token
 
 	return sm.saveState()
@@ -161,7 +178,7 @@ func (sm *StateManager) UpdateTokenUsage(tokenID string, usageTime time.Time) er
 
 	token, exists := sm.State.TokenStates[tokenID]
 	if !exists {
-		return fmt.Errorf("token %s not found", tokenID)
+		return fmt.Errorf("tokenID %s: %w", tokenID, ErrTokenNotFound)
 	}
 
 	token.UpdateTokenUsage(usageTime)
@@ -197,6 +214,7 @@ func (sm *StateManager) ResetUsageMetricsForAllTokens(resumeTime time.Time) erro
 }
 
 func (sm *StateManager) GetLeastUsageToken() (string, error) {
+	// mutex lock is used to ensure that the state is not modified while we are reading it and vice versa
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -204,17 +222,54 @@ func (sm *StateManager) GetLeastUsageToken() (string, error) {
 		return "", fmt.Errorf("no tokens available")
 	}
 
-	var leastUsedTokenID string
-	var leastUsedCount int
+	return GetLeastUsageToken(sm.State.TokenStates)
+}
 
-	for tokenID, token := range sm.State.TokenStates {
-		if leastUsedTokenID == "" || token.SuccessfulUsageCount < leastUsedCount {
-			leastUsedTokenID = tokenID
-			leastUsedCount = token.SuccessfulUsageCount
+// GetLeastUsageActiveToken returns the token ID of the least used active token.
+// It filters the tokens to only include those that are active and then finds the one with the least usage.
+// If no active tokens are found, it returns an error.
+func (sm *StateManager) GetLeastUsageActiveToken() (string, error) {
+	// mutex lock is used to ensure that the state is not modified while we are reading it and vice versa
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	if len(sm.State.TokenStates) == 0 {
+		return "", ErrEmptyTokenPool
+	}
+
+	activeTokens := make(map[string]token.TokenState)
+	for tokenID, tokenState := range sm.State.TokenStates {
+		if tokenState.IsActive() {
+			activeTokens[tokenID] = tokenState
 		}
 	}
 
-	return leastUsedTokenID, nil
+	if len(activeTokens) > 0 {
+		return GetLeastUsageToken(activeTokens)
+	}
+
+	ignoredTokenCount := 0
+	exhaustedTokenCount := 0
+	otherValidTokenCount := 0
+	for _, tokenState := range sm.State.TokenStates {
+		if tokenState.IsIgnored() {
+			ignoredTokenCount++
+		} else if tokenState.IsExhausted() {
+			exhaustedTokenCount++
+		} else if token.IsTokenStatusValid(tokenState.Status) {
+			otherValidTokenCount++
+		} else {
+			return "", token.ErrUnExpectedTokenStatus
+		}
+	}
+
+	if len(sm.State.TokenStates) == ignoredTokenCount {
+		return "", ErrAllTokenIgnored
+	} else if (len(sm.State.TokenStates) - ignoredTokenCount - otherValidTokenCount) == exhaustedTokenCount {
+		return "", ErrAllTokensExhausted
+	}
+
+	return "", ErrActiveTokenNotFound
 }
 
 func (sm *StateManager) UpdateTokenStatus(tokenID string, status token.TokenStatus) error {
@@ -223,7 +278,7 @@ func (sm *StateManager) UpdateTokenStatus(tokenID string, status token.TokenStat
 
 	token, exists := sm.State.TokenStates[tokenID]
 	if !exists {
-		return fmt.Errorf("token %s not found", tokenID)
+		return fmt.Errorf("tokenID %s: %w", tokenID, ErrTokenNotFound)
 	}
 
 	token.UpdateTokenStatus(status, time.Now())
@@ -244,3 +299,49 @@ func (sm *StateManager) GetTokenStatus(tokenID string) (token.TokenStatus, bool)
 
 	return token.Status, true
 }
+
+func (sm *StateManager) GetActiveTokens() []string {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	var activeTokens []string
+	for tokenID, tokenState := range sm.State.TokenStates {
+		if tokenState.IsActive() {
+			activeTokens = append(activeTokens, tokenID)
+		}
+	}
+
+	return activeTokens
+}
+
+func GetLeastUsageToken(tokens map[string]token.TokenState) (string, error) {
+	if len(tokens) == 0 {
+		return "", fmt.Errorf("no tokens available")
+	}
+
+	var leastUsedTokenID string
+	var leastUsedCount int
+
+	for tokenID, token := range tokens {
+		if leastUsedTokenID == "" || token.SuccessfulUsageCount < leastUsedCount {
+			leastUsedTokenID = tokenID
+			leastUsedCount = token.SuccessfulUsageCount
+		}
+	}
+
+	return leastUsedTokenID, nil
+}
+
+type TokenError error
+
+var (
+	ErrTokenNotFound      TokenError = errors.New("token not found")
+	ErrAllTokensExhausted TokenError = errors.New("all tokens are exhausted")
+
+	ErrEmptyTokenPool      TokenError = fmt.Errorf("token pool is empty: %w", customerrors.ErrCritical)
+	ErrAllTokenIgnored     TokenError = fmt.Errorf("all tokens are ignored: %w", customerrors.ErrCritical)
+	ErrActiveTokenNotFound TokenError = fmt.Errorf(
+		"no active token found (this is unexpected — expected either ErrAllTokensExhausted or ErrAllTokenIgnored): %w",
+		customerrors.ErrCritical,
+	)
+)

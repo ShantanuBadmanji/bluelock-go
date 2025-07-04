@@ -33,3 +33,6 @@ auth_tokens.json
 auth_tokens.backup.json
 secrets/auth_tokens.json.lock
 config/config.user.json
+
+# Ignore practice files
+*/ignore-practice/

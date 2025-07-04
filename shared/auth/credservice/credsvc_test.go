@@ -35,7 +35,7 @@ var (
 	  }`)
 )
 
-func createAuthTokensFile(filePath string) error {
+func CreateAuthTokensFile(filePath string) error {
 	// Create a new file with the given path
 	file, err := os.Create(filePath)
 	if err != nil {
@@ -60,7 +60,7 @@ func RemoveAuthTokensFile(filePath string) error {
 	}
 	return nil
 }
-func removeAllAuthReleatedFiles(filePath string) error {
+func RemoveAllAuthReleatedFiles(filePath string) error {
 	if err := RemoveAuthTokensFile(filePath); err != nil {
 		return err
 	}
@@ -80,11 +80,11 @@ func removeAllAuthReleatedFiles(filePath string) error {
 func TestNormalizeAndPersistCredentials(t *testing.T) {
 	// Create a temporary file for testing
 	filePath := "testdata/auth_tokens.json"
-	if err := createAuthTokensFile(filePath); err != nil {
+	if err := CreateAuthTokensFile(filePath); err != nil {
 		t.Fatalf("failed to create auth_tokens.json file: %v", err)
 	}
 	defer func() {
-		if err := removeAllAuthReleatedFiles(filePath); err != nil {
+		if err := RemoveAllAuthReleatedFiles(filePath); err != nil {
 			t.Fatalf("failed to remove auth_tokens.json file: %v", err)
 		}
 	}()
@@ -98,11 +98,11 @@ func TestNormalizeAndPersistCredentials(t *testing.T) {
 func TestLoadAuthTokensFromFileAndValidate(t *testing.T) {
 	// Create a temporary file for testing
 	filePath := "testdata/auth_tokens.json"
-	if err := createAuthTokensFile(filePath); err != nil {
+	if err := CreateAuthTokensFile(filePath); err != nil {
 		t.Fatalf("failed to create auth_tokens.json file: %v", err)
 	}
 	defer func() {
-		if err := removeAllAuthReleatedFiles(filePath); err != nil {
+		if err := RemoveAllAuthReleatedFiles(filePath); err != nil {
 			t.Fatalf("failed to remove auth_tokens.json file: %v", err)
 		}
 	}()

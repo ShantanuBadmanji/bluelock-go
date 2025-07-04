@@ -1,6 +1,9 @@
 package token
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // TokenState represents the state of a single token
 type TokenState struct {
@@ -21,15 +24,25 @@ func (ts *TokenState) IsUnauthorized() bool {
 func (ts *TokenState) IsActive() bool {
 	return ts.Status == TokenActive
 }
+
+func (ts *TokenState) IsIgnored() bool {
+
+	return slices.Contains(IgnoredTokenStatuses, ts.Status)
+}
+
 func (ts *TokenState) UpdateTokenStatus(status TokenStatus, statusChangedAt time.Time) {
 	ts.Status = status
 	ts.StatusChangedAt = statusChangedAt
 }
 
 func (ts *TokenState) SetTokenAsExhausted(exhaustionTime time.Time) {
-
 	ts.UpdateTokenStatus(TokenExhausted, exhaustionTime)
 	ts.ExhaustedAt = exhaustionTime
+}
+
+func (ts *TokenState) SetTokenAsUnauthorized(unauthorizedTime time.Time) {
+	ts.UpdateTokenStatus(TokenUnauthorized, unauthorizedTime)
+	ts.ExhaustedAt = unauthorizedTime
 }
 
 func (ts *TokenState) UpdateTokenUsage(tokenUsageTime time.Time) {

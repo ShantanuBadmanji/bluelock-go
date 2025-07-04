@@ -8,6 +8,7 @@ import (
 	"github.com/bluelock-go/config"
 	"github.com/bluelock-go/integrations"
 	"github.com/bluelock-go/shared"
+	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/auth/credservice"
 	"github.com/bluelock-go/shared/jobscheduler"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
@@ -30,10 +31,24 @@ func main() {
 	authTokensFilePath := filepath.Join(shared.RootDir, "secrets", "auth_tokens.json")
 	credStore, _, err := credservice.LoadAuthTokensFromFileAndValidate(authTokensFilePath)
 	if err != nil {
-		customLogger.Logger.Error("Failed to load authentication tokens", "error", err)
+		customLogger.Error("Failed to load authentication tokens", "error", err)
 		os.Exit(1)
 	} else {
 		customLogger.Info("Authentication tokens loaded successfully", "authTokensFilePath", authTokensFilePath)
+	}
+
+	datapullCredentials, ok := credStore[credservice.DatapullCredentialsKey]
+	if !ok {
+		customLogger.Error("Datapull credentials not found in the credential store")
+		os.Exit(1)
+	} else if err := auth.ValidateCredentials(credservice.DatapullCredentialsKey, datapullCredentials); err != nil {
+		customLogger.Error("Invalid Datapull credentials", "error", err)
+		os.Exit(1)
+	} else if len(datapullCredentials) == 0 {
+		customLogger.Error("No Datapull credentials found in the credential store")
+		os.Exit(1)
+	} else {
+		customLogger.Info("Datapull credentials found in the credential store", "credentials", datapullCredentials)
 	}
 
 	// Initialize the state manager
@@ -49,7 +64,7 @@ func main() {
 
 	// Sync token status with the latest authentication credentials
 	customLogger.Info("Syncing token status with latest authentication credentials...")
-	if err := stateManager.SyncTokenStatusWithLatestAuthCredentials(credStore[credservice.DatapullCredentialsKey]); err != nil {
+	if err := stateManager.SyncTokenStatusWithLatestAuthCredentials(datapullCredentials); err != nil {
 		customLogger.Logger.Error("Failed to sync token status with latest authentication credentials", "error", err)
 		os.Exit(1)
 	} else {
@@ -77,7 +92,7 @@ func main() {
 	// initialte services
 	customLogger.Info("Initializing Services...")
 	customLogger.Info("Initializing Datapull Integration Service...")
-	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(cfg, customLogger, stateManager)
+	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(cfg, customLogger, stateManager, datapullCredentials)
 	if err != nil {
 		customLogger.Logger.Error("Failed to initialize active integration service", "error", err)
 		os.Exit(1)
