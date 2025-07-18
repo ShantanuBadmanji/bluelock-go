@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	github.com/gofrs/flock v0.12.1
+	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/stretchr/testify v1.10.0
 )

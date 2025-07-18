@@ -1,6 +1,8 @@
 package bitbucketcloud
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -8,6 +10,7 @@ import (
 	"github.com/bluelock-go/config"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
+	dbgen "github.com/bluelock-go/shared/database/generated"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
@@ -17,11 +20,13 @@ type BitbucketCloudSvc struct {
 	credentials  []auth.Credential
 	config       *config.Config
 	apiClient    *Client
+	dbQuerier    dbgen.Querier
 }
 
-func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, config *config.Config) *BitbucketCloudSvc {
+func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, config *config.Config, dbQuerier dbgen.Querier) *BitbucketCloudSvc {
 	return &BitbucketCloudSvc{logger, stateManager, credentials, config,
 		NewClient(http.DefaultClient, stateManager, logger, credentials),
+		dbQuerier,
 	}
 }
 
@@ -36,6 +41,9 @@ func (bcSvc *BitbucketCloudSvc) GetStateManager() *statemanager.StateManager {
 }
 func (bcSvc *BitbucketCloudSvc) GetCredentials() []auth.Credential {
 	return bcSvc.credentials
+}
+func (bcSvc *BitbucketCloudSvc) GetQuerier() dbgen.Querier {
+	return bcSvc.dbQuerier
 }
 
 func (bcSvc *BitbucketCloudSvc) ValidateEnvVariables() error {
@@ -79,8 +87,37 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 	}
 	bcSvc.logger.Info("Found workspaces", "count", len(workspaces))
 	for _, workspace := range workspaces {
+		repos, err := bcSvc.apiClient.GetRepositoriesByWorkspace(workspace.Slug, func(s string) {})
+		if err != nil {
+			bcSvc.logger.Error("Error pulling repositories from Bitbucket Cloud", "error", err)
+			return err
+		}
+		if len(repos) == 0 {
+			bcSvc.logger.Warn("No repositories found in workspace", "workspace", workspace.Slug)
+			continue
+		}
+		bcSvc.logger.Info("Found repositories", "count", len(repos))
+		for _, repo := range repos {
+			bcSvc.logger.Info("Repository", "name", repo.Name)
+			if repoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err != nil {
+				bcSvc.logger.Error("Error getting repo sync audit", "error", err)
+				return err
+			} else if repoSyncAudit.ID != "" {
+				bcSvc.logger.Info("Repo sync audit already exists", "id", repoSyncAudit.ID)
+				continue
+			}
 
-		bcSvc.logger.Info("Processing workspace", "slug", workspace.Slug, "name", workspace.Name)
+			if _, err := bcSvc.dbQuerier.CreateRepoSyncAudit(context.Background(), dbgen.CreateRepoSyncAuditParams{
+				ID:                 repo.Slug,
+				RepoName:           repo.Name,
+				SuccessfulSyncTime: sql.NullTime{Valid: false},
+				Success:            false,
+				ErrorContext:       sql.NullString{Valid: false},
+			}); err != nil {
+				bcSvc.logger.Error("Error creating repo sync audit", "error", err)
+				return err
+			}
+		}
 	}
 
 	// Simulate pulling repositories

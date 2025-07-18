@@ -7,6 +7,7 @@ import (
 	"github.com/bluelock-go/integrations/git/bitbucket/bitbucketcloud"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
+	dbgen "github.com/bluelock-go/shared/database/generated"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
@@ -22,14 +23,15 @@ type IntegrationService interface {
 	// ValidateEnvVariables validates the environment variables for the integration service.
 	ValidateEnvVariables() error
 	// DataPull runs the data pull for the integration service.
+	GetQuerier() dbgen.Querier
 	RunJob() error
 }
 
-func GetActiveIntegrationService(cfg *config.Config, logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential) (IntegrationService, error) {
+func GetActiveIntegrationService(cfg *config.Config, logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, dbQuerier dbgen.Querier) (IntegrationService, error) {
 	switch cfg.ActiveService {
 	case config.BitbucketCloudKey:
 		logger.Info("Initializing Bitbucket Cloud as the active integration service")
-		return bitbucketcloud.NewBitbucketCloudSvc(logger, stateManager, credentials, cfg), nil
+		return bitbucketcloud.NewBitbucketCloudSvc(logger, stateManager, credentials, cfg, dbQuerier), nil
 	default:
 		logger.Error("Unsupported service type", "serviceType", cfg.ActiveService)
 		return nil, fmt.Errorf("unsupported service type: %s", cfg.ActiveService)
