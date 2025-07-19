@@ -1,6 +1,6 @@
 // Make sure the all the services using auth_tokens.json are terminated before trying to normalize auth_tokens.json
-//  as this might lead to corrupted reads, race conditions, or other unexpected behavior.
-//  This is especially important for services that rely on the auth_tokens.json file for authentication or authorization.
+// as this might lead to corrupted reads, race conditions, or other unexpected behavior.
+// This is especially important for services that rely on the auth_tokens.json file for authentication or authorization.
 package main
 
 import (

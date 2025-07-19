@@ -11,21 +11,24 @@ help:
 	@echo "  make run-puller     - Run datapuller"
 	@echo "  make run-authsync   - Run authsync"
 	@echo ""
-	@echo "Database commands:"
+	@echo "Database:"
+	@echo "  make db-setup       - Setup database and run initial migrations"
 	@echo "  make db-up          - Run all migrations"
 	@echo "  make db-down        - Rollback one migration"
 	@echo "  make db-reset       - Reset all migrations"
 	@echo "  make db-status      - Check migration status"
-	@echo "  make db-create NAME=migration_name - Create new migration"
+	@echo "  make db-create NAME=name - Create a new migration"
 	@echo ""
-	@echo "SQLC commands:"
-	@echo "  make sqlc-generate  - Generate Go code from queries"
+	@echo "SQLC:"
+	@echo "  make sqlc-generate  - Generate Go code from SQL queries"
 	@echo "  make sqlc-verify    - Verify SQLC configuration"
 	@echo ""
 	@echo "Development:"
-	@echo "  make clean          - Clean build artifacts"
+	@echo "  make format         - Format code"
+	@echo "  make check          - Compile all Go packages"
 	@echo "  make test           - Run tests"
-	@echo "  make lint           - Run linter"
+	@echo "  make clean          - Remove binaries and clean artifacts"
+	@echo "  make deps           - Install Go module dependencies"
 
 # Build commands
 .PHONY: build
@@ -81,13 +84,17 @@ clean:
 	rm -rf bin/
 	go clean
 
+.PHONY: format
+format:
+	go fmt ./...
+
+.PHONY: check
+check:
+	go build ./...
+
 .PHONY: test
 test:
 	go test ./...
-
-.PHONY: lint
-lint:
-	golangci-lint run
 
 # Install dependencies
 .PHONY: deps
