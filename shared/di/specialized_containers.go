@@ -23,6 +23,7 @@ type APIContainer struct {
 // Ensure APIContainer implements APIProvider
 var _ APIProvider = (*APIContainer)(nil)
 
+// NewAPIContainer creates a new APIContainer with the default HTTP client initialized.
 func NewAPIContainer() *APIContainer {
 	return &APIContainer{
 		HTTPClient: http.DefaultClient,
@@ -93,6 +94,7 @@ type ServiceContainer struct {
 // Ensure ServiceContainer implements ServiceProvider
 var _ ServiceProvider = (*ServiceContainer)(nil)
 
+// NewServiceContainer creates and returns a new, empty ServiceContainer instance.
 func NewServiceContainer() *ServiceContainer {
 	return &ServiceContainer{}
 }
@@ -159,6 +161,7 @@ type DatabaseContainer struct {
 // Ensure DatabaseContainer implements DatabaseProvider
 var _ DatabaseProvider = (*DatabaseContainer)(nil)
 
+// NewDatabaseContainer creates and returns a new, empty DatabaseContainer instance.
 func NewDatabaseContainer() *DatabaseContainer {
 	return &DatabaseContainer{}
 }

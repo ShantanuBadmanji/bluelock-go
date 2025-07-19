@@ -34,7 +34,7 @@ var _ APIProvider = (*Container)(nil)
 var _ ServiceProvider = (*Container)(nil)
 var _ FullProvider = (*Container)(nil)
 
-// NewContainer creates a new dependency container
+// NewContainer returns a new Container instance with the HTTP client initialized to the default client.
 func NewContainer() *Container {
 	return &Container{
 		HTTPClient: http.DefaultClient,

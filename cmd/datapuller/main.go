@@ -19,6 +19,10 @@ import (
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
+// main is the entry point for the datapuller application, orchestrating initialization and execution of all core components.
+// It sets up logging, loads and validates authentication credentials, initializes state management and configuration,
+// establishes a database connection, configures dependency injection, initializes integration services, and starts the job scheduler.
+// The application terminates immediately on any critical initialization failure, logging the error before exit.
 func main() {
 	// Initialize the application logger
 	log.Println("Initializing application logger...")

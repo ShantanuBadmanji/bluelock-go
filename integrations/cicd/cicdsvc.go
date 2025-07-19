@@ -12,11 +12,13 @@ type CICDIntegrationService interface {
 	DeploymentPull() error
 }
 
+// ensureCICDIntegrationServiceImplementation is a placeholder for compile-time checks to ensure that CI/CD service implementations satisfy the CICDIntegrationService interface.
 func ensureCICDIntegrationServiceImplementation() {
 	// Add CI/CD services here as they are implemented
 	// var _ CICDIntegrationService = (*jenkins.JenkinsSvc)(nil)
 }
 
+// init ensures that CICDIntegrationService interface implementation checks are performed during package initialization.
 func init() {
 	ensureCICDIntegrationServiceImplementation()
 }

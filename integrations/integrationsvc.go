@@ -16,6 +16,8 @@ type IntegrationService interface {
 	RunJob() error
 }
 
+// GetActiveIntegrationService returns an active integration service implementation based on the configuration in the provided container.
+// If the configured service type is unsupported, it returns an error.
 func GetActiveIntegrationService(container *di.Container) (IntegrationService, error) {
 	var service IntegrationService
 	var err error

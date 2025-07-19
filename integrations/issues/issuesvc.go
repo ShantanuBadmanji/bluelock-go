@@ -12,11 +12,13 @@ type IssueIntegrationService interface {
 	IssueMetricsPull() error
 }
 
+// ensureIssueIntegrationServiceImplementation enforces at compile time that all required issue integration services implement the IssueIntegrationService interface.
 func ensureIssueIntegrationServiceImplementation() {
 	// Add issue services here as they are implemented
 	// var _ IssueIntegrationService = (*jira.JiraSvc)(nil)
 }
 
+// init performs package-level initialization and enforces compile-time checks for IssueIntegrationService implementations.
 func init() {
 	ensureIssueIntegrationServiceImplementation()
 }

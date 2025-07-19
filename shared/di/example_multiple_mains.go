@@ -12,7 +12,7 @@ import (
 
 // Example: Different main files can use different containers based on their needs
 
-// Example 1: datapuller/main.go - needs full container
+// ExampleDataPullerMain demonstrates initializing a full dependency injection container with all available dependencies and using it to construct a service.
 func ExampleDataPullerMain() {
 	// This main needs everything
 	container := NewContainer().
@@ -27,7 +27,7 @@ func ExampleDataPullerMain() {
 	_ = NewSomeService(container)
 }
 
-// Example 2: authsync/main.go - needs only basic dependencies
+// ExampleAuthSyncMain demonstrates initializing a service container with only the logger, config, and credentials dependencies, suitable for applications that do not require a database or HTTP client.
 func ExampleAuthSyncMain() {
 	// This main only needs logger, config, and credentials
 	serviceContainer := NewServiceContainer().
@@ -39,7 +39,7 @@ func ExampleAuthSyncMain() {
 	_ = NewAuthSyncService(serviceContainer)
 }
 
-// Example 3: api/main.go - needs API-related dependencies
+// ExampleAPIMain demonstrates initializing an API service with only the dependencies required for API operations, such as logger, state manager, credentials, and HTTP client, using a tailored dependency injection container.
 func ExampleAPIMain() {
 	// This main needs API-related dependencies
 	apiContainer := NewAPIContainer().
@@ -52,7 +52,7 @@ func ExampleAPIMain() {
 	_ = NewAPIService(apiContainer)
 }
 
-// Example 4: worker/main.go - needs database and basic dependencies
+// ExampleWorkerMain demonstrates initializing a worker service with separate service and database containers, each configured with only the required dependencies.
 func ExampleWorkerMain() {
 	// This main needs database and basic dependencies
 	serviceContainer := NewServiceContainer().
@@ -68,19 +68,25 @@ func ExampleWorkerMain() {
 	_ = NewWorkerService(serviceContainer, databaseContainer)
 }
 
-// Mock service constructors for the examples
+// NewSomeService returns a placeholder service instance using the provided Container.
+// This function serves as a mock constructor for demonstration purposes.
 func NewSomeService(container *Container) interface{} {
 	return nil
 }
 
+// NewAuthSyncService creates a new instance of the auth sync service using the provided service dependencies.
 func NewAuthSyncService(serviceProvider ServiceProvider) interface{} {
 	return nil
 }
 
+// NewAPIService initializes a new API service using the provided APIProvider.
+// Returns a placeholder value; replace with actual service initialization as needed.
 func NewAPIService(apiProvider APIProvider) interface{} {
 	return nil
 }
 
+// NewWorkerService initializes a worker service using the provided service and database dependencies.
+// Returns a placeholder value; intended as a stub for actual worker service construction.
 func NewWorkerService(serviceProvider ServiceProvider, databaseProvider DatabaseProvider) interface{} {
 	return nil
 }

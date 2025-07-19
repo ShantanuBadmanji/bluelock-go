@@ -21,10 +21,12 @@ type PriorityScheduledGitIntegrationService interface {
 	GitCodeBreakdownPull() error
 }
 
+// ensureGitIntegrationServiceImplementation enforces at compile time that BitbucketCloudSvc implements PriorityScheduledGitIntegrationService.
 func ensureGitIntegrationServiceImplementation() {
 	var _ PriorityScheduledGitIntegrationService = (*bitbucketcloud.BitbucketCloudSvc)(nil)
 }
 
+// init enforces at startup that BitbucketCloudSvc implements PriorityScheduledGitIntegrationService.
 func init() {
 	ensureGitIntegrationServiceImplementation()
 }

@@ -20,6 +20,7 @@ type BitbucketCloudSvc struct {
 	apiClient        *Client
 }
 
+// NewBitbucketCloudSvc creates and returns a new BitbucketCloudSvc with the provided service, API, and database providers.
 func NewBitbucketCloudSvc(serviceProvider di.ServiceProvider, apiProvider di.APIProvider, databaseProvider di.DatabaseProvider) *BitbucketCloudSvc {
 	return &BitbucketCloudSvc{
 		serviceProvider:  serviceProvider,

@@ -24,6 +24,7 @@ type Client struct {
 	credentials  []auth.Credential
 }
 
+// NewClient creates and returns a new Bitbucket Cloud API client using dependencies provided by the given APIProvider.
 func NewClient(apiProvider di.APIProvider) *Client {
 	return &Client{
 		baseURL:      "https://api.bitbucket.org/2.0",
