@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"log"
 	"os"
 	"path/filepath"
@@ -11,9 +10,8 @@ import (
 	"github.com/bluelock-go/config"
 	"github.com/bluelock-go/integrations"
 	"github.com/bluelock-go/shared"
-	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/auth/credservice"
-	dbgen "github.com/bluelock-go/shared/database/generated"
+	"github.com/bluelock-go/shared/database/dbsetup"
 	"github.com/bluelock-go/shared/jobscheduler"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
@@ -22,49 +20,38 @@ func main() {
 	// Initialize the application logger
 	log.Println("Initializing application logger...")
 	appLoggerFilePath := filepath.Join(shared.RootDir, "logs", "datapuller.log")
-	customLogger, logFile, err := shared.NewCustomLogger(appLoggerFilePath, shared.TextLogHandler)
+	logFile, err := shared.InitializeCustomLogger(appLoggerFilePath, shared.TextLogHandler)
 	if err != nil {
-		log.Fatalf("failed to create custom logger: %v", err)
+		log.Fatalf("failed to initialize custom logger: %v", err)
+	}
+	defer logFile.Close()
+	customLogger := shared.AcquireCustomLogger()
+	if customLogger == nil {
+		log.Fatalf("failed to create custom logger")
 	}
 	customLogger.Info("Custom logger initialized", "absoluteFilePath", appLoggerFilePath)
-
-	defer logFile.Close()
 
 	// Load authentication tokens
 	customLogger.Info("Loading authentication tokens...")
 	authTokensFilePath := filepath.Join(shared.RootDir, "secrets", "auth_tokens.json")
-	credStore, _, err := credservice.LoadAuthTokensFromFileAndValidate(authTokensFilePath)
-	if err != nil {
-		customLogger.Error("Failed to load authentication tokens", "error", err)
+	if err = credservice.InitializeAuthCredentialStore(authTokensFilePath, credservice.DatapullCredentialsKey); err != nil {
+		customLogger.Logger.Error("Failed to initialize authentication credential store", "error", err)
 		os.Exit(1)
 	} else {
-		customLogger.Info("Authentication tokens loaded successfully", "authTokensFilePath", authTokensFilePath)
+		customLogger.Info("Authentication credential store initialized successfully", "authTokensFilePath", authTokensFilePath)
 	}
-
-	datapullCredentials, ok := credStore[credservice.DatapullCredentialsKey]
-	if !ok {
-		customLogger.Error("Datapull credentials not found in the credential store")
-		os.Exit(1)
-	} else if err := auth.ValidateCredentials(credservice.DatapullCredentialsKey, datapullCredentials); err != nil {
-		customLogger.Error("Invalid Datapull credentials", "error", err)
-		os.Exit(1)
-	} else if len(datapullCredentials) == 0 {
-		customLogger.Error("No Datapull credentials found in the credential store")
-		os.Exit(1)
-	} else {
-		customLogger.Info("Datapull credentials found in the credential store", "credentials", datapullCredentials)
-	}
+	datapullCredentials := credservice.AcquireCredentials()
 
 	// Initialize the state manager
 	customLogger.Info("Initializing state manager...")
 	stateJsonFilePath := filepath.Join(shared.RootDir, "states", "datapuller.json")
-	stateManager, err := statemanager.NewStateManager(stateJsonFilePath)
-	if err != nil {
+	if err := statemanager.InitializeStateManager(stateJsonFilePath); err != nil {
 		customLogger.Logger.Error("Failed to initialize state manager", "error", err)
 		os.Exit(1)
 	} else {
-		customLogger.Info("State manager initialized", "stateJsonFilePath", stateJsonFilePath)
+		customLogger.Info("State manager initialized successfully", "stateJsonFilePath", stateJsonFilePath)
 	}
+	stateManager := statemanager.AcquireStateManager()
 
 	// Sync token status with the latest authentication credentials
 	customLogger.Info("Syncing token status with latest authentication credentials...")
@@ -77,39 +64,30 @@ func main() {
 
 	// Load and validate the configuration
 	customLogger.Info("Loading configuration...")
-	cfg, err := config.LoadMergedConfig()
-	if err != nil {
-		customLogger.Logger.Error("Failed to load configuration", "error", err)
+	if err := config.InitializeConfig(); err != nil {
+		customLogger.Logger.Error("Failed to initialize configuration", "error", err)
 		os.Exit(1)
 	} else {
-		customLogger.Info("Configuration loaded successfully")
+		customLogger.Info("Configuration initialized successfully")
 	}
 
-	customLogger.Info("Validating defaults and common configuration...")
-	if err = cfg.ValidateDefaultsAndCommonConfig(); err != nil {
-		customLogger.Logger.Error("Invalid defaults or common configuration", "error", err)
-		os.Exit(1)
-	} else {
-		customLogger.Info("Defaults and common configuration validated successfully")
-	}
-
-	//Initialise SQLC DB
+	//Initialize SQLC DB
 	customLogger.Info("Initializing SQLC DB...")
-	db, err := sql.Open("sqlite3", filepath.Join(shared.RootDir, "database.db"))
+	db, err := dbsetup.InitializeDb()
 	if err != nil {
 		customLogger.Logger.Error("Failed to initialize SQLC DB", "error", err)
 		os.Exit(1)
 	}
 	defer db.Close()
 
-	// Initialize the database queries
-	dbQueries := dbgen.New(db)
-	customLogger.Info("SQLC DB initialized successfully", "dbPath", filepath.Join(shared.RootDir, "database.db"))
+	config.InitializeConfig()
+	cfg := config.AcquireConfig()
+	customLogger.Info("Configuration loaded successfully", "activeService", cfg.ActiveService)
 
 	// initialte services
 	customLogger.Info("Initializing Services...")
 	customLogger.Info("Initializing Datapull Integration Service...")
-	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(cfg, customLogger, stateManager, datapullCredentials, dbQueries)
+	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(cfg.ActiveService, customLogger)
 	if err != nil {
 		customLogger.Logger.Error("Failed to initialize active integration service", "error", err)
 		os.Exit(1)

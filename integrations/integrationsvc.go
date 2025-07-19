@@ -27,13 +27,13 @@ type IntegrationService interface {
 	RunJob() error
 }
 
-func GetActiveIntegrationService(cfg *config.Config, logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, dbQuerier dbgen.Querier) (IntegrationService, error) {
-	switch cfg.ActiveService {
+func GetActiveIntegrationService(activeService config.ServiceKey, logger *shared.CustomLogger) (IntegrationService, error) {
+	switch activeService {
 	case config.BitbucketCloudKey:
 		logger.Info("Initializing Bitbucket Cloud as the active integration service")
-		return bitbucketcloud.NewBitbucketCloudSvc(logger, stateManager, credentials, cfg, dbQuerier), nil
+		return bitbucketcloud.AcquireBitbucketCloudSvc(), nil
 	default:
-		logger.Error("Unsupported service type", "serviceType", cfg.ActiveService)
-		return nil, fmt.Errorf("unsupported service type: %s", cfg.ActiveService)
+		logger.Error("Unsupported service type", "serviceType", activeService)
+		return nil, fmt.Errorf("unsupported service type: %s", activeService)
 	}
 }

@@ -261,3 +261,36 @@ func (c *Config) GetServiceConfig() (interface{}, error) {
 		return nil, fmt.Errorf("unsupported service key: %s", c.ActiveService)
 	}
 }
+
+var cfg *Config
+
+func InitializeConfig() error {
+	customLogger := shared.AcquireCustomLogger()
+	if cfg != nil {
+		return fmt.Errorf("configuration already initialized")
+	}
+
+	var err error
+	cfg, err = LoadMergedConfig()
+	if err != nil {
+		customLogger.Logger.Error("Failed to load configuration", "error", err)
+		os.Exit(1)
+	} else {
+		customLogger.Info("Configuration loaded successfully")
+	}
+
+	customLogger.Info("Validating defaults and common configuration...")
+	if err = cfg.ValidateDefaultsAndCommonConfig(); err != nil {
+		customLogger.Logger.Error("Invalid defaults or common configuration", "error", err)
+		os.Exit(1)
+	} else {
+		customLogger.Info("Defaults and common configuration validated successfully")
+	}
+	return nil
+}
+func AcquireConfig() *Config {
+	if cfg == nil {
+		panic("configuration not initialized, call InitializeConfig first")
+	}
+	return cfg
+}
