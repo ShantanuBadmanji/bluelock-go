@@ -142,12 +142,7 @@ func (credStore AuthCredentialStore) validateCredStore() error {
 
 	for key, creds := range credStore {
 		if err := auth.ValidateCredentials(key, creds); err != nil {
-			return err
-		}
-		for _, cred := range creds {
-			if cred.Username == "" || cred.Password == "" {
-				return fmt.Errorf("invalid credentials for key %s: username and password must not be empty", key)
-			}
+			return fmt.Errorf("invalid credentials for key %s: %w", key, err)
 		}
 	}
 

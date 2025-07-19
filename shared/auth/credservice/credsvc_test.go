@@ -10,24 +10,29 @@ var (
 	data = []byte(`{
 		"commitAnalysisCredentials": [
 		  {
+			"credKey": "commit_analysis_user_4",
 			"username": "user_4",
 			"password": "password_4"
 		  },
 		  {
+			"credKey": "commit_analysis_user_5",
 			"username": "user_5",
 			"password": "password_5"
 		  }
 		],
 		"datapullCredentials": [
 		  {
+			"credKey": "datapull_user_1",
 			"username": "user_1",
 			"password": "password_1"
 		  },
 		  {
+			"credKey": "datapull_user_2",
 			"username": "user_2",
 			"password": "password_2"
 		  },
 		  {
+			"credKey": "datapull_user_3",
 			"username": "user_3",
 			"password": "password_3"
 		  }
