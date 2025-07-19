@@ -5,35 +5,35 @@ import (
 
 	"github.com/bluelock-go/config"
 	"github.com/bluelock-go/integrations/git/bitbucket/bitbucketcloud"
-	"github.com/bluelock-go/shared"
-	"github.com/bluelock-go/shared/auth"
-	dbgen "github.com/bluelock-go/shared/database/generated"
-	"github.com/bluelock-go/shared/storage/state/statemanager"
+	"github.com/bluelock-go/shared/di"
 )
 
 type IntegrationService interface {
-	// GetLogger returns the logger of the integration service.
-	GetLogger() *shared.CustomLogger
-	// GetConfig returns the configuration of the integration service.
-	GetConfig() *config.Config
-	// GetCredentials returns the credentials of the integration service.
-	GetCredentials() []auth.Credential
-	// GetStateManager returns the state manager of the integration service.
-	GetStateManager() *statemanager.StateManager
+	di.ServiceProvider
 	// ValidateEnvVariables validates the environment variables for the integration service.
 	ValidateEnvVariables() error
-	// DataPull runs the data pull for the integration service.
-	GetQuerier() dbgen.Querier
+	// RunJob runs the data pull for the integration service.
 	RunJob() error
 }
 
-func GetActiveIntegrationService(cfg *config.Config, logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, dbQuerier dbgen.Querier) (IntegrationService, error) {
-	switch cfg.ActiveService {
+func GetActiveIntegrationService(container *di.Container) (IntegrationService, error) {
+	var service IntegrationService
+	var err error
+
+	switch container.Config.ActiveService {
 	case config.BitbucketCloudKey:
-		logger.Info("Initializing Bitbucket Cloud as the active integration service")
-		return bitbucketcloud.NewBitbucketCloudSvc(logger, stateManager, credentials, cfg, dbQuerier), nil
+		container.Logger.Info("Initializing Bitbucket Cloud as the active integration service")
+
+		// Create specialized containers for different needs
+		serviceContainer := container.ToServiceContainer()
+		apiContainer := container.ToAPIContainer()
+		databaseContainer := container.ToDatabaseContainer()
+
+		service = bitbucketcloud.NewBitbucketCloudSvc(serviceContainer, apiContainer, databaseContainer)
 	default:
-		logger.Error("Unsupported service type", "serviceType", cfg.ActiveService)
-		return nil, fmt.Errorf("unsupported service type: %s", cfg.ActiveService)
+		container.Logger.Error("Unsupported service type", "serviceType", container.Config.ActiveService)
+		return nil, fmt.Errorf("unsupported service type: %s", container.Config.ActiveService)
 	}
+
+	return service, err
 }

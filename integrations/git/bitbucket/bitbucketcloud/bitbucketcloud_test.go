@@ -12,6 +12,7 @@ import (
 
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
+	"github.com/bluelock-go/shared/di"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 	"github.com/bluelock-go/shared/storage/state/token"
 	"github.com/stretchr/testify/assert"
@@ -44,9 +45,11 @@ func TestHandleRequestWithRetriesWith200StatusCode(t *testing.T) {
 		{CredKey: "test-token3"},
 		{CredKey: "test-token4"},
 	}
-	client := NewClient(nil, sm,
-		&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}, credentials,
-	)
+	container := di.NewContainer().
+		SetLogger(&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}).
+		SetStateManager(sm).
+		SetCredentials(credentials)
+	client := NewClient(container)
 
 	// Define a request callback function
 	requestCallback := func(cred *auth.Credential) (*http.Response, error) {
@@ -90,9 +93,11 @@ func TestHandleRequestWithRetriesWithOther2xxStatusCode(t *testing.T) {
 		{CredKey: "test-token3"},
 		{CredKey: "test-token4"},
 	}
-	client := NewClient(nil, sm,
-		&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}, credentials,
-	)
+	container := di.NewContainer().
+		SetLogger(&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}).
+		SetStateManager(sm).
+		SetCredentials(credentials)
+	client := NewClient(container)
 
 	// Define a request callback function
 	requestCallback := func(cred *auth.Credential) (*http.Response, error) {
@@ -138,10 +143,11 @@ func TestHandleRequestWithRetriesWith401StatusCode(t *testing.T) {
 		{CredKey: "test-token3"},
 		{CredKey: "test-token4"},
 	}
-	client := NewClient(
-		nil, sm,
-		&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}, credentials,
-	)
+	container := di.NewContainer().
+		SetLogger(&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}).
+		SetStateManager(sm).
+		SetCredentials(credentials)
+	client := NewClient(container)
 
 	requestCallback := func(cred *auth.Credential) (*http.Response, error) {
 		// Simulate a request that returns an error
@@ -194,10 +200,11 @@ func TestHandleRequestWithRetriesWith429StatusCode(t *testing.T) {
 		{CredKey: "test-token3"},
 		{CredKey: "test-token4"},
 	}
-	client := NewClient(
-		nil, sm,
-		&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}, credentials,
-	)
+	container := di.NewContainer().
+		SetLogger(&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}).
+		SetStateManager(sm).
+		SetCredentials(credentials)
+	client := NewClient(container)
 
 	// Define a request callback function
 	requestCallback := func(cred *auth.Credential) (*http.Response, error) {
@@ -239,10 +246,11 @@ func TestHandleRequestWithRetriesWithOther4xxStatusCode(t *testing.T) {
 	credentials := []auth.Credential{
 		{CredKey: "test-token1"},
 	}
-	client := NewClient(
-		nil, sm,
-		&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}, credentials,
-	)
+	container := di.NewContainer().
+		SetLogger(&shared.CustomLogger{Logger: slog.New(slog.NewTextHandler(os.Stdout, nil))}).
+		SetStateManager(sm).
+		SetCredentials(credentials)
+	client := NewClient(container)
 
 	// Define a request callback function
 	requestCallback := func(cred *auth.Credential) (*http.Response, error) {
