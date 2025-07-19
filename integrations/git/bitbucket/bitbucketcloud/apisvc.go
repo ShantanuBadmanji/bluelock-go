@@ -12,6 +12,7 @@ import (
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/customerrors"
+	"github.com/bluelock-go/shared/di"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
@@ -23,13 +24,13 @@ type Client struct {
 	credentials  []auth.Credential
 }
 
-func NewClient(httpClient *http.Client, stateManager *statemanager.StateManager, logger *shared.CustomLogger, credentials []auth.Credential) *Client {
+func NewClient(apiProvider di.APIProvider) *Client {
 	return &Client{
 		baseURL:      "https://api.bitbucket.org/2.0",
-		httpClient:   httpClient,
-		stateManager: stateManager,
-		logger:       logger,
-		credentials:  credentials,
+		httpClient:   apiProvider.GetHTTPClient(),
+		stateManager: apiProvider.GetStateManager(),
+		logger:       apiProvider.GetLogger(),
+		credentials:  apiProvider.GetCredentials(),
 	}
 }
 
@@ -223,7 +224,7 @@ func (c *Client) GetPullRequestsByRepository(workspace, repository string, sendE
 			c.logger.Error(logMessage)
 			return nil, fmt.Errorf("failed to get pull requests for repository %s/%s: %w", workspace, repository, err)
 		}
-		
+
 		defer response.Body.Close()
 
 		var prResponse BBktCloudPaginatedResponse[BBktCloudPullRequest]

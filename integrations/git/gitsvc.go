@@ -1,6 +1,9 @@
 package git
 
-import "github.com/bluelock-go/integrations"
+import (
+	"github.com/bluelock-go/integrations"
+	"github.com/bluelock-go/integrations/git/bitbucket/bitbucketcloud"
+)
 
 type GitIntegrationService interface {
 	integrations.IntegrationService
@@ -16,4 +19,12 @@ type PriorityScheduledGitIntegrationService interface {
 	GitIntegrationService
 	// GitCodeBreakdownPull fetches the diffs from VCS such as lines of code, files changed, etc.
 	GitCodeBreakdownPull() error
+}
+
+func ensureGitIntegrationServiceImplementation() {
+	var _ PriorityScheduledGitIntegrationService = (*bitbucketcloud.BitbucketCloudSvc)(nil)
+}
+
+func init() {
+	ensureGitIntegrationServiceImplementation()
 }

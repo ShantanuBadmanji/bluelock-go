@@ -14,6 +14,7 @@ import (
 	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/auth/credservice"
 	dbgen "github.com/bluelock-go/shared/database/generated"
+	"github.com/bluelock-go/shared/di"
 	"github.com/bluelock-go/shared/jobscheduler"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
@@ -93,7 +94,7 @@ func main() {
 		customLogger.Info("Defaults and common configuration validated successfully")
 	}
 
-	//Initialise SQLC DB
+	//Initialize SQLC DB
 	customLogger.Info("Initializing SQLC DB...")
 	db, err := sql.Open("sqlite3", filepath.Join(shared.RootDir, "database.db"))
 	if err != nil {
@@ -103,13 +104,28 @@ func main() {
 	defer db.Close()
 
 	// Initialize the database queries
-	dbQueries := dbgen.New(db)
+	_ = dbgen.New(db)
 	customLogger.Info("SQLC DB initialized successfully", "dbPath", filepath.Join(shared.RootDir, "database.db"))
 
-	// initialte services
+	// Initialize dependency container
+	customLogger.Info("Initializing dependency container...")
+	container := di.NewContainer().
+		SetLogger(customLogger).
+		SetConfig(cfg).
+		SetStateManager(stateManager).
+		SetCredentials(datapullCredentials).
+		SetDB(db)
+
+	if err := container.Validate(); err != nil {
+		customLogger.Error("Failed to validate dependency container", "error", err)
+		os.Exit(1)
+	}
+	customLogger.Info("Dependency container initialized successfully")
+
+	// Initialize services using the container
 	customLogger.Info("Initializing Services...")
 	customLogger.Info("Initializing Datapull Integration Service...")
-	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(cfg, customLogger, stateManager, datapullCredentials, dbQueries)
+	datapullIntegrationSvc, err := integrations.GetActiveIntegrationService(container)
 	if err != nil {
 		customLogger.Logger.Error("Failed to initialize active integration service", "error", err)
 		os.Exit(1)
