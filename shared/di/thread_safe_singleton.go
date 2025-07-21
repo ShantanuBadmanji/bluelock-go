@@ -8,6 +8,7 @@ import (
 type ThreadSafeSingleton[T any] struct {
 	instance atomic.Value // stores T
 	once     sync.Once
+	resetMu  sync.Mutex
 	creator  func() T
 }
 
@@ -22,17 +23,18 @@ func (ts *ThreadSafeSingleton[T]) Acquire() T {
 		return instance.(T)
 	}
 
-	var result T
 	ts.once.Do(func() {
-		result = ts.creator()
+		result := ts.creator()
 		ts.instance.Store(result)
 	})
 
-	return result
+	return ts.instance.Load().(T)
 }
 
 // Reset allows re-initialization (useful for testing)
 func (ts *ThreadSafeSingleton[T]) Reset() {
+	ts.resetMu.Lock()
+	defer ts.resetMu.Unlock()
 	ts.instance.Store(nil)
 	ts.once = sync.Once{}
 }
