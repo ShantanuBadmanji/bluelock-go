@@ -273,16 +273,14 @@ func InitializeConfig() error {
 	var err error
 	cfg, err = LoadMergedConfig()
 	if err != nil {
-		customLogger.Logger.Error("Failed to load configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load configuration: %w", err)
 	} else {
 		customLogger.Info("Configuration loaded successfully")
 	}
 
 	customLogger.Info("Validating defaults and common configuration...")
 	if err = cfg.ValidateDefaultsAndCommonConfig(); err != nil {
-		customLogger.Logger.Error("Invalid defaults or common configuration", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("invalid defaults or common configuration: %w", err)
 	} else {
 		customLogger.Info("Defaults and common configuration validated successfully")
 	}

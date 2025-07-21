@@ -3,7 +3,6 @@ package dbsetup
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -16,7 +15,6 @@ var db database.DBTX
 var querier database.Querier
 
 func InitializeDb() (*sql.DB, error) {
-	customLogger := shared.AcquireCustomLogger()
 	if db != nil {
 		return nil, fmt.Errorf("database already initialized")
 	}
@@ -24,8 +22,7 @@ func InitializeDb() (*sql.DB, error) {
 	var err error
 	db, err = sql.Open("sqlite3", filepath.Join(shared.RootDir, "database.db"))
 	if err != nil {
-		customLogger.Logger.Error("Failed to initialize SQLC DB", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 	querier = database.New(db)
 	return db.(*sql.DB), nil

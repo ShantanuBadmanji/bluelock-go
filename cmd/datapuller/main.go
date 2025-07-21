@@ -78,7 +78,6 @@ func main() {
 	}
 	defer db.Close()
 
-	config.InitializeConfig()
 	cfg := config.AcquireConfig()
 	customLogger.Info("Configuration loaded successfully", "activeService", cfg.ActiveService)
 

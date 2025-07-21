@@ -358,8 +358,7 @@ func InitializeStateManager(stateJsonFilePath string) error {
 	var err error
 	stateManager, err = NewStateManager(stateJsonFilePath)
 	if err != nil {
-		customLogger.Logger.Error("Failed to initialize state manager", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize state manager: %w", err)
 	} else {
 		customLogger.Info("State manager initialized", "stateJsonFilePath", stateJsonFilePath)
 	}

@@ -165,8 +165,7 @@ func InitializeAuthCredentialStore(authTokensFilePath string, credentialKey Cred
 	var err error
 	authCredentialStore, _, err = LoadAuthTokensFromFileAndValidate(authTokensFilePath)
 	if err != nil {
-		customLogger.Error("Failed to load authentication tokens", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load authentication tokens: %w", err)
 	} else {
 		customLogger.Info("Authentication tokens loaded successfully", "authTokensFilePath", authTokensFilePath)
 	}
@@ -174,14 +173,11 @@ func InitializeAuthCredentialStore(authTokensFilePath string, credentialKey Cred
 	var ok bool
 	credentials, ok = authCredentialStore[credentialKey]
 	if !ok {
-		customLogger.Error("Datapull credentials not found in the credential store")
-		os.Exit(1)
+		return fmt.Errorf("datapull credentials not found in the credential store")
 	} else if err := auth.ValidateCredentials(string(credentialKey), credentials); err != nil {
-		customLogger.Error("Invalid Datapull credentials", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("invalid datapull credentials: %w", err)
 	} else if len(credentials) == 0 {
-		customLogger.Error("No Datapull credentials found in the credential store")
-		os.Exit(1)
+		return fmt.Errorf("no datapull credentials found in the credential store")
 	} else {
 		customLogger.Info("Datapull credentials found in the credential store", "credentials", credentials)
 	}
