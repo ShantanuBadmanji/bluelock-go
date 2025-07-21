@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
-
 	"github.com/bluelock-go/config"
 	"github.com/bluelock-go/integrations"
 	"github.com/bluelock-go/shared"

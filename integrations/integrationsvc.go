@@ -7,7 +7,6 @@ import (
 	"github.com/bluelock-go/integrations/git/bitbucket/bitbucketcloud"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
-	dbgen "github.com/bluelock-go/shared/database/generated"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
@@ -22,8 +21,7 @@ type IntegrationService interface {
 	GetStateManager() *statemanager.StateManager
 	// ValidateEnvVariables validates the environment variables for the integration service.
 	ValidateEnvVariables() error
-	// DataPull runs the data pull for the integration service.
-	GetQuerier() dbgen.Querier
+	// RunJob runs the job for the integration service.
 	RunJob() error
 }
 
