@@ -13,6 +13,7 @@ import (
 	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/auth/credservice"
 	"github.com/bluelock-go/shared/customerrors"
+	"github.com/bluelock-go/shared/di"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
@@ -246,15 +247,13 @@ func (c *Client) GetPullRequestsByRepository(workspace, repository string, sendE
 	return pullRequests, nil
 }
 
-var client *Client
+var client = di.NewThreadSafeSingleton(func() *Client {
+	customLogger := shared.AcquireCustomLogger()
+	stateManager := statemanager.AcquireStateManager()
+	credentials := credservice.AcquireCredentials()
+	return NewClient(http.DefaultClient, stateManager, customLogger, credentials)
+})
 
 func AcquireClient() *Client {
-	if client == nil {
-		customLogger := shared.AcquireCustomLogger()
-		stateManager := statemanager.AcquireStateManager()
-		credentials := credservice.AcquireCredentials()
-		client = NewClient(http.DefaultClient, stateManager, customLogger, credentials)
-	}
-
-	return client
+	return client.Acquire()
 }

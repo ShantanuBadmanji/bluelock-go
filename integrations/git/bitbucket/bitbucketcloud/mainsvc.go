@@ -12,6 +12,7 @@ import (
 	"github.com/bluelock-go/shared/auth/credservice"
 	"github.com/bluelock-go/shared/database/dbsetup"
 	dbgen "github.com/bluelock-go/shared/database/generated"
+	"github.com/bluelock-go/shared/di"
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
@@ -137,18 +138,16 @@ func (bcSvc *BitbucketCloudSvc) GitActivityPull() error {
 	return nil
 }
 
-var bitbucketCloudSvc *BitbucketCloudSvc
+var bitbucketCloudSvc = di.NewThreadSafeSingleton(func() *BitbucketCloudSvc {
+	customLogger := shared.AcquireCustomLogger()
+	cfg := config.AcquireConfig()
+	statemanager := statemanager.AcquireStateManager()
+	credentials := credservice.AcquireCredentials()
+	dbQuerier := dbsetup.AcquireQuerier()
+	client := AcquireClient()
+	return NewBitbucketCloudSvc(customLogger, statemanager, credentials, cfg, dbQuerier, client)
+})
 
 func AcquireBitbucketCloudSvc() *BitbucketCloudSvc {
-	customLogger := shared.AcquireCustomLogger()
-	if bitbucketCloudSvc == nil {
-		cfg := config.AcquireConfig()
-		statemanager := statemanager.AcquireStateManager()
-		credentials := credservice.AcquireCredentials()
-		dbQuerier := dbsetup.AcquireQueries()
-		client := AcquireClient()
-		bitbucketCloudSvc = NewBitbucketCloudSvc(customLogger, statemanager, credentials, cfg, dbQuerier, client)
-		customLogger.Info("Bitbucket Cloud service initialized successfully")
-	}
-	return bitbucketCloudSvc
+	return bitbucketCloudSvc.Acquire()
 }
