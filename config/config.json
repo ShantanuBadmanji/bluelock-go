@@ -20,7 +20,8 @@
     "common": {
         "cronExpression": "0 * * * *",
         "reworkThresholdDays": 21,
-        "orgCode": "<ORG_CODE>"
+        "orgCode": "<ORG_CODE>",
+        "relayBaseURL": "<RELAY_ORIGIN_URL>"
     },
     "defaults": {
         "requestSizeThresholdInBytes": 150000,

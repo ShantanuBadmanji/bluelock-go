@@ -3,10 +3,12 @@ package bitbucketcloud
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/bluelock-go/config"
+	"github.com/bluelock-go/integrations/relay"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/auth/credservice"
@@ -23,12 +25,14 @@ type BitbucketCloudSvc struct {
 	config       *config.Config
 	apiClient    *Client
 	dbQuerier    dbgen.Querier
+	dataRelayer  relay.DataRelayer
 }
 
-func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, config *config.Config, dbQuerier dbgen.Querier, client *Client) *BitbucketCloudSvc {
+func NewBitbucketCloudSvc(logger *shared.CustomLogger, stateManager *statemanager.StateManager, credentials []auth.Credential, config *config.Config, dbQuerier dbgen.Querier, client *Client, dataRelayer relay.DataRelayer) *BitbucketCloudSvc {
 	return &BitbucketCloudSvc{logger, stateManager, credentials, config,
 		client,
 		dbQuerier,
+		dataRelayer,
 	}
 }
 
@@ -79,7 +83,7 @@ func (bcSvc *BitbucketCloudSvc) RunJob() error {
 
 func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 	bcSvc.logger.Info("Pulling repositories from Bitbucket Cloud...")
-	workspaces, err := bcSvc.apiClient.GetWorkspaces(func(s string) {})
+	workspaces, err := bcSvc.apiClient.GetWorkspaces(bcSvc.dataRelayer.SendPullError)
 	if err != nil {
 		bcSvc.logger.Error("Error pulling workspaces from Bitbucket Cloud", "error", err)
 		return err
@@ -89,7 +93,7 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 	}
 	bcSvc.logger.Info("Found workspaces", "count", len(workspaces))
 	for _, workspace := range workspaces {
-		repos, err := bcSvc.apiClient.GetRepositoriesByWorkspace(workspace.Slug, func(s string) {})
+		repos, err := bcSvc.apiClient.GetRepositoriesByWorkspace(workspace.Slug, bcSvc.dataRelayer.SendPullError)
 		if err != nil {
 			bcSvc.logger.Error("Error pulling repositories from Bitbucket Cloud", "error", err)
 			return err
@@ -101,12 +105,10 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 		bcSvc.logger.Info("Found repositories", "count", len(repos))
 		for _, repo := range repos {
 			bcSvc.logger.Info("Repository", "name", repo.Name)
-			if repoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err != nil {
+			if _, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				// If the error is not a no rows error, return the error
 				bcSvc.logger.Error("Error getting repo sync audit", "error", err)
 				return err
-			} else if repoSyncAudit.ID != "" {
-				bcSvc.logger.Info("Repo sync audit already exists", "id", repoSyncAudit.ID)
-				continue
 			}
 
 			if _, err := bcSvc.dbQuerier.CreateRepoSyncAudit(context.Background(), dbgen.CreateRepoSyncAuditParams{
@@ -122,9 +124,6 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 		}
 	}
 
-	// Simulate pulling repositories
-	// In a real implementation, this would involve making API calls to Bitbucket Cloud
-	// to pull the repositories and store them in the state manager.
 	bcSvc.logger.Info("Repositories pulled successfully.")
 	return nil
 }
@@ -145,7 +144,8 @@ var bitbucketCloudSvc = di.NewThreadSafeSingleton(func() *BitbucketCloudSvc {
 	credentials := credservice.AcquireCredentials()
 	dbQuerier := dbsetup.AcquireQuerier()
 	client := AcquireClient()
-	return NewBitbucketCloudSvc(customLogger, statemanager, credentials, cfg, dbQuerier, client)
+	bluelockDataRelayer := relay.AcquireBluelockRelayService()
+	return NewBitbucketCloudSvc(customLogger, statemanager, credentials, cfg, dbQuerier, client, bluelockDataRelayer)
 })
 
 func AcquireBitbucketCloudSvc() *BitbucketCloudSvc {

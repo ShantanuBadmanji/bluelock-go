@@ -10,22 +10,22 @@ import (
 	"github.com/bluelock-go/shared/storage/state/statemanager"
 )
 
-type IntegrationService interface {
-	// GetLogger returns the logger of the integration service.
+type Integrator interface {
+	// GetLogger returns the logger of the integrator.
 	GetLogger() *shared.CustomLogger
-	// GetConfig returns the configuration of the integration service.
+	// GetConfig returns the configuration of the integrator.
 	GetConfig() *config.Config
-	// GetCredentials returns the credentials of the integration service.
+	// GetCredentials returns the credentials of the integrator.
 	GetCredentials() []auth.Credential
-	// GetStateManager returns the state manager of the integration service.
+	// GetStateManager returns the state manager of the integrator.
 	GetStateManager() *statemanager.StateManager
-	// ValidateEnvVariables validates the environment variables for the integration service.
+	// ValidateEnvVariables validates the environment variables for the integrator.
 	ValidateEnvVariables() error
-	// RunJob runs the job for the integration service.
+	// RunJob runs the job for the integrator.
 	RunJob() error
 }
 
-func GetActiveIntegrationService(activeService config.ServiceKey, logger *shared.CustomLogger) (IntegrationService, error) {
+func GetActiveIntegrationService(activeService config.ServiceKey, logger *shared.CustomLogger) (Integrator, error) {
 	switch activeService {
 	case config.BitbucketCloudKey:
 		logger.Info("Initializing Bitbucket Cloud as the active integration service")

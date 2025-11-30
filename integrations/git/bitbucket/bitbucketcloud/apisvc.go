@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/bluelock-go/shared"
@@ -125,7 +126,7 @@ func (c *Client) HandleRequestWithRetries(requestCallback func(*auth.Credential)
 	return nil, fmt.Errorf("exceeded maximum reset limit(%d) without a successful response", MAX_ATTEMPTS)
 }
 
-func (c *Client) getRequestCallback(url string, sendErrorLogCallback func(string)) func(*auth.Credential) (*http.Response, error) {
+func (c *Client) getRequestCallback(url string, sendErrorLogCallback func(payload interface{}, queryParams url.Values) error) func(*auth.Credential) (*http.Response, error) {
 
 	return func(cred *auth.Credential) (*http.Response, error) {
 		token := base64.StdEncoding.EncodeToString(fmt.Appendf(nil, fmt.Sprintf("%s:%s", cred.Username, cred.Password)))
@@ -133,7 +134,7 @@ func (c *Client) getRequestCallback(url string, sendErrorLogCallback func(string
 		if err != nil {
 			logMessage := fmt.Sprintf("Failed to create new request: %s", err.Error())
 			c.logger.Error(logMessage)
-			sendErrorLogCallback(logMessage)
+			sendErrorLogCallback(logMessage, nil)
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
@@ -144,7 +145,7 @@ func (c *Client) getRequestCallback(url string, sendErrorLogCallback func(string
 	}
 }
 
-func (c *Client) GetWorkspaces(sendErrorLogCallback func(string)) ([]BBktCloudWorkspace, error) {
+func (c *Client) GetWorkspaces(sendErrorLogCallback func(payload interface{}, queryParams url.Values) error) ([]BBktCloudWorkspace, error) {
 	workspaces := []BBktCloudWorkspace{}
 	pageLen := 50
 
@@ -178,7 +179,7 @@ func (c *Client) GetWorkspaces(sendErrorLogCallback func(string)) ([]BBktCloudWo
 	return workspaces, nil
 }
 
-func (c *Client) GetRepositoriesByWorkspace(workspace string, sendErrorLogCallback func(string)) ([]BBktCloudRepository, error) {
+func (c *Client) GetRepositoriesByWorkspace(workspace string, sendErrorLogCallback func(payload interface{}, queryParams url.Values) error) ([]BBktCloudRepository, error) {
 	repositories := []BBktCloudRepository{}
 	pageLen := 100
 
@@ -212,7 +213,7 @@ func (c *Client) GetRepositoriesByWorkspace(workspace string, sendErrorLogCallba
 	return repositories, nil
 }
 
-func (c *Client) GetPullRequestsByRepository(workspace, repository string, sendErrorLogCallback func(string)) ([]BBktCloudPullRequest, error) {
+func (c *Client) GetPullRequestsByRepository(workspace, repository string, sendErrorLogCallback func(payload interface{}, queryParams url.Values) error) ([]BBktCloudPullRequest, error) {
 	pullRequests := []BBktCloudPullRequest{}
 	pageLen := 100
 

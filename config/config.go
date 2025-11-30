@@ -65,6 +65,7 @@ type Common struct {
 	CronExpression      string `json:"cronExpression"`
 	ReworkThresholdDays int    `json:"reworkThresholdDays"`
 	OrgCode             string `json:"orgCode"`
+	RelayBaseURL        string `json:"relayBaseURL"`
 }
 
 type Defaults struct {
@@ -158,9 +159,13 @@ func LoadMergedConfig() (*Config, error) {
 	// Merge common values
 	if userConfig.Common.OrgCode == "" {
 		return nil, fmt.Errorf("orgCode is required")
-	} else {
-		mergedConfig.Common.OrgCode = defaultConfig.Common.OrgCode
 	}
+	mergedConfig.Common.OrgCode = userConfig.Common.OrgCode
+
+	if userConfig.Common.RelayBaseURL == "" {
+		return nil, fmt.Errorf("relayBaseURL is required")
+	}
+	mergedConfig.Common.RelayBaseURL = userConfig.Common.RelayBaseURL
 
 	if userConfig.Common.CronExpression != "" {
 		mergedConfig.Common.CronExpression = userConfig.Common.CronExpression
