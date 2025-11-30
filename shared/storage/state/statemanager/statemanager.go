@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/customerrors"
 	"github.com/bluelock-go/shared/storage/state/token"
@@ -345,3 +346,28 @@ var (
 		customerrors.ErrCritical,
 	)
 )
+
+var stateManager *StateManager
+
+func InitializeStateManager(stateJsonFilePath string) error {
+	customLogger := shared.AcquireCustomLogger()
+	if stateManager != nil {
+		return fmt.Errorf("state manager is already initialized")
+	}
+
+	var err error
+	stateManager, err = NewStateManager(stateJsonFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize state manager: %w", err)
+	} else {
+		customLogger.Info("State manager initialized", "stateJsonFilePath", stateJsonFilePath)
+	}
+
+	return nil
+}
+func AcquireStateManager() *StateManager {
+	if stateManager == nil {
+		panic("state manager not initialized, call InitializeStateManager first")
+	}
+	return stateManager
+}

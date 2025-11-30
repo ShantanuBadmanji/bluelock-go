@@ -8,16 +8,19 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
 	"github.com/gofrs/flock"
 )
 
-type AuthCredentialStore map[string][]auth.Credential
+type CredKey string
 
 const (
-	DatapullCredentialsKey       = "datapullCredentials"
-	CommitAnalysisCredentialsKey = "commitAnalysisCredentials"
+	DatapullCredentialsKey       CredKey = "datapullCredentials"
+	CommitAnalysisCredentialsKey CredKey = "commitAnalysisCredentials"
 )
+
+type AuthCredentialStore map[CredKey][]auth.Credential
 
 func NormalizeAndPersistCredentials(filePath string) (AuthCredentialStore, error) {
 	credStore, data, err := LoadAuthTokensFromFileAndValidate(filePath)
@@ -141,10 +144,50 @@ func (credStore AuthCredentialStore) validateCredStore() error {
 	}
 
 	for key, creds := range credStore {
-		if err := auth.ValidateCredentials(key, creds); err != nil {
+		if err := auth.ValidateCredentials(string(key), creds); err != nil {
 			return fmt.Errorf("invalid credentials for key %s: %w", key, err)
 		}
 	}
 
 	return nil
+}
+
+var authCredentialStore AuthCredentialStore
+var credentials []auth.Credential
+
+func InitializeAuthCredentialStore(authTokensFilePath string, credentialKey CredKey) error {
+	customLogger := shared.AcquireCustomLogger()
+
+	if authCredentialStore != nil {
+		return fmt.Errorf("auth credential store is already initialized")
+	}
+
+	var err error
+	authCredentialStore, _, err = LoadAuthTokensFromFileAndValidate(authTokensFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to load authentication tokens: %w", err)
+	} else {
+		customLogger.Info("Authentication tokens loaded successfully", "authTokensFilePath", authTokensFilePath)
+	}
+
+	var ok bool
+	credentials, ok = authCredentialStore[credentialKey]
+	if !ok {
+		return fmt.Errorf("datapull credentials not found in the credential store")
+	} else if err := auth.ValidateCredentials(string(credentialKey), credentials); err != nil {
+		return fmt.Errorf("invalid datapull credentials: %w", err)
+	} else if len(credentials) == 0 {
+		return fmt.Errorf("no datapull credentials found in the credential store")
+	} else {
+		customLogger.Info("Datapull credentials found in the credential store", "credentials", credentials)
+	}
+
+	return nil
+}
+
+func AcquireCredentials() []auth.Credential {
+	if authCredentialStore == nil {
+		panic("auth credential store not initialized, call InitializeAuthCredentialStore first")
+	}
+	return credentials
 }

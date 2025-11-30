@@ -75,3 +75,26 @@ func handleSourcePath(rootPath string, source *slog.Source) string {
 
 	return fmt.Sprintf("%s:%d", relativePath, source.Line)
 }
+
+var customLogger *CustomLogger
+
+func InitializeCustomLogger(filepath string, handlerType HandlerType) (*os.File, error) {
+	if customLogger != nil {
+		return nil, fmt.Errorf("custom logger already initialized")
+	}
+
+	var err error
+	var logFile *os.File
+	customLogger, logFile, err = NewCustomLogger(filepath, handlerType)
+	if err != nil {
+		return logFile, fmt.Errorf("failed to initialize custom logger: %v", err)
+	}
+
+	return logFile, nil
+}
+func AcquireCustomLogger() *CustomLogger {
+	if customLogger == nil {
+		panic("custom logger not initialized, call InitializeCustomLogger first")
+	}
+	return customLogger
+}
