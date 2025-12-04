@@ -105,8 +105,13 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 		bcSvc.logger.Info("Found repositories", "count", len(repos))
 		for _, repo := range repos {
 			bcSvc.logger.Info("Repository", "name", repo.Name)
-			if _, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err != nil && !errors.Is(err, sql.ErrNoRows) {
-				// If the error is not a no rows error, return the error
+			if existingRepoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err == nil || errors.Is(err, sql.ErrNoRows) {
+				bcSvc.logger.Debug("Repository found in database", "name", existingRepoSyncAudit.RepoName)
+				continue
+			} else if errors.Is(err, sql.ErrNoRows) {
+				// If the error is a no rows error, create a new repo sync audit
+				bcSvc.logger.Info("Repository not found in database. Creating new repo sync audit", "name", repo.Name)
+			} else {
 				bcSvc.logger.Error("Error getting repo sync audit", "error", err)
 				return err
 			}
