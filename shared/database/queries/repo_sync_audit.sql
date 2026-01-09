@@ -13,14 +13,15 @@ WHERE id = :id;
 
 
 -- name: CreateRepoSyncAudit :one
-INSERT INTO repository_sync_audit (id, repo_name, successful_sync_time, success, error_context)
-VALUES (:id, :repo_name, :successful_sync_time, :success, :error_context)
+INSERT INTO repository_sync_audit (id, repo_name, workspace_slug, successful_sync_time, success, error_context)
+VALUES (:id, :repo_name, :workspace_slug, :successful_sync_time, :success, :error_context)
 RETURNING *;
 
 
 -- name: UpdateRepoSyncAudit :one
 UPDATE repository_sync_audit
 SET repo_name = :repo_name,
+    workspace_slug = :workspace_slug,
     successful_sync_time = :successful_sync_time,
     success = :success,
     error_context = :error_context,

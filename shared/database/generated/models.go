@@ -12,6 +12,7 @@ import (
 type RepositorySyncAudit struct {
 	ID                 string         `json:"id"`
 	RepoName           string         `json:"repo_name"`
+	WorkspaceSlug      string         `json:"workspace_slug"`
 	Active             bool           `json:"active"`
 	SuccessfulSyncTime sql.NullTime   `json:"successful_sync_time"`
 	UpdatedAt          time.Time      `json:"updated_at"`

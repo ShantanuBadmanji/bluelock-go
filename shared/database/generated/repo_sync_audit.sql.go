@@ -11,14 +11,15 @@ import (
 )
 
 const createRepoSyncAudit = `-- name: CreateRepoSyncAudit :one
-INSERT INTO repository_sync_audit (id, repo_name, successful_sync_time, success, error_context)
-VALUES (?1, ?2, ?3, ?4, ?5)
-RETURNING id, repo_name, active, successful_sync_time, updated_at, created_at, success, error_context
+INSERT INTO repository_sync_audit (id, repo_name, workspace_slug, successful_sync_time, success, error_context)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+RETURNING id, repo_name, workspace_slug, active, successful_sync_time, updated_at, created_at, success, error_context
 `
 
 type CreateRepoSyncAuditParams struct {
 	ID                 string         `json:"id"`
 	RepoName           string         `json:"repo_name"`
+	WorkspaceSlug      string         `json:"workspace_slug"`
 	SuccessfulSyncTime sql.NullTime   `json:"successful_sync_time"`
 	Success            bool           `json:"success"`
 	ErrorContext       sql.NullString `json:"error_context"`
@@ -28,6 +29,7 @@ func (q *Queries) CreateRepoSyncAudit(ctx context.Context, arg CreateRepoSyncAud
 	row := q.db.QueryRowContext(ctx, createRepoSyncAudit,
 		arg.ID,
 		arg.RepoName,
+		arg.WorkspaceSlug,
 		arg.SuccessfulSyncTime,
 		arg.Success,
 		arg.ErrorContext,
@@ -36,6 +38,7 @@ func (q *Queries) CreateRepoSyncAudit(ctx context.Context, arg CreateRepoSyncAud
 	err := row.Scan(
 		&i.ID,
 		&i.RepoName,
+		&i.WorkspaceSlug,
 		&i.Active,
 		&i.SuccessfulSyncTime,
 		&i.UpdatedAt,
@@ -49,7 +52,7 @@ func (q *Queries) CreateRepoSyncAudit(ctx context.Context, arg CreateRepoSyncAud
 const deleteInactiveRepoSyncAudit = `-- name: DeleteInactiveRepoSyncAudit :one
 DELETE FROM repository_sync_audit
 WHERE id = ?1 AND active = FALSE
-RETURNING id, repo_name, active, successful_sync_time, updated_at, created_at, success, error_context
+RETURNING id, repo_name, workspace_slug, active, successful_sync_time, updated_at, created_at, success, error_context
 `
 
 func (q *Queries) DeleteInactiveRepoSyncAudit(ctx context.Context, id string) (RepositorySyncAudit, error) {
@@ -58,6 +61,7 @@ func (q *Queries) DeleteInactiveRepoSyncAudit(ctx context.Context, id string) (R
 	err := row.Scan(
 		&i.ID,
 		&i.RepoName,
+		&i.WorkspaceSlug,
 		&i.Active,
 		&i.SuccessfulSyncTime,
 		&i.UpdatedAt,
@@ -69,7 +73,7 @@ func (q *Queries) DeleteInactiveRepoSyncAudit(ctx context.Context, id string) (R
 }
 
 const getRepoSyncAuditByID = `-- name: GetRepoSyncAuditByID :one
-SELECT id, repo_name, active, successful_sync_time, updated_at, created_at, success, error_context
+SELECT id, repo_name, workspace_slug, active, successful_sync_time, updated_at, created_at, success, error_context
 FROM repository_sync_audit
 WHERE id = ?1
 `
@@ -80,6 +84,7 @@ func (q *Queries) GetRepoSyncAuditByID(ctx context.Context, id string) (Reposito
 	err := row.Scan(
 		&i.ID,
 		&i.RepoName,
+		&i.WorkspaceSlug,
 		&i.Active,
 		&i.SuccessfulSyncTime,
 		&i.UpdatedAt,
@@ -91,7 +96,7 @@ func (q *Queries) GetRepoSyncAuditByID(ctx context.Context, id string) (Reposito
 }
 
 const listActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAt = `-- name: ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAt :many
-SELECT id, repo_name, active, successful_sync_time, updated_at, created_at, success, error_context
+SELECT id, repo_name, workspace_slug, active, successful_sync_time, updated_at, created_at, success, error_context
 FROM repository_sync_audit
 WHERE active = TRUE
 ORDER BY successful_sync_time ASC, created_at ASC
@@ -115,6 +120,7 @@ func (q *Queries) ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAt(ctx 
 		if err := rows.Scan(
 			&i.ID,
 			&i.RepoName,
+			&i.WorkspaceSlug,
 			&i.Active,
 			&i.SuccessfulSyncTime,
 			&i.UpdatedAt,
@@ -138,16 +144,18 @@ func (q *Queries) ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAt(ctx 
 const updateRepoSyncAudit = `-- name: UpdateRepoSyncAudit :one
 UPDATE repository_sync_audit
 SET repo_name = ?1,
-    successful_sync_time = ?2,
-    success = ?3,
-    error_context = ?4,
+    workspace_slug = ?2,
+    successful_sync_time = ?3,
+    success = ?4,
+    error_context = ?5,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = ?5
-RETURNING id, repo_name, active, successful_sync_time, updated_at, created_at, success, error_context
+WHERE id = ?6
+RETURNING id, repo_name, workspace_slug, active, successful_sync_time, updated_at, created_at, success, error_context
 `
 
 type UpdateRepoSyncAuditParams struct {
 	RepoName           string         `json:"repo_name"`
+	WorkspaceSlug      string         `json:"workspace_slug"`
 	SuccessfulSyncTime sql.NullTime   `json:"successful_sync_time"`
 	Success            bool           `json:"success"`
 	ErrorContext       sql.NullString `json:"error_context"`
@@ -157,6 +165,7 @@ type UpdateRepoSyncAuditParams struct {
 func (q *Queries) UpdateRepoSyncAudit(ctx context.Context, arg UpdateRepoSyncAuditParams) (RepositorySyncAudit, error) {
 	row := q.db.QueryRowContext(ctx, updateRepoSyncAudit,
 		arg.RepoName,
+		arg.WorkspaceSlug,
 		arg.SuccessfulSyncTime,
 		arg.Success,
 		arg.ErrorContext,
@@ -166,6 +175,7 @@ func (q *Queries) UpdateRepoSyncAudit(ctx context.Context, arg UpdateRepoSyncAud
 	err := row.Scan(
 		&i.ID,
 		&i.RepoName,
+		&i.WorkspaceSlug,
 		&i.Active,
 		&i.SuccessfulSyncTime,
 		&i.UpdatedAt,
@@ -181,7 +191,7 @@ UPDATE repository_sync_audit
 SET active = ?1,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = ?2
-RETURNING id, repo_name, active, successful_sync_time, updated_at, created_at, success, error_context
+RETURNING id, repo_name, workspace_slug, active, successful_sync_time, updated_at, created_at, success, error_context
 `
 
 type UpdateRepoSyncAuditActiveStatusParams struct {
@@ -195,6 +205,7 @@ func (q *Queries) UpdateRepoSyncAuditActiveStatus(ctx context.Context, arg Updat
 	err := row.Scan(
 		&i.ID,
 		&i.RepoName,
+		&i.WorkspaceSlug,
 		&i.Active,
 		&i.SuccessfulSyncTime,
 		&i.UpdatedAt,

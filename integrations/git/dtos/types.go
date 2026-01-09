@@ -1,4 +1,4 @@
-package git
+package dtos
 
 import "time"
 
@@ -63,19 +63,19 @@ type DevDPullRequest struct {
 	SourceBranch string             `json:"sourceBranch"`
 	TargetBranch string             `json:"targetBranch"`
 	Author       DevDActor          `json:"author"`
-	Reviewers    []interface{}      `json:"reviewers"`
+	Reviewers    []DevDActor        `json:"reviewers"`
 	CommentCount int                `json:"commentCount"`
 	Link         string             `json:"link"`
 }
 
 type DevDRepo struct {
-	Prs      []DevDPullRequest `json:"prs"`
 	Slug     string            `json:"slug"`
 	Name     string            `json:"name"`
 	ID       string            `json:"id"`
 	IsPublic bool              `json:"isPublic"`
 	Link     string            `json:"link"`
 	Commits  []DevDCommit      `json:"commits"`
+	Prs      []DevDPullRequest `json:"prs"`
 }
 
 type DevDData struct {

@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"time"
 
 	"github.com/bluelock-go/config"
+	"github.com/bluelock-go/integrations/git/dtos"
 	"github.com/bluelock-go/integrations/relay"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
@@ -103,7 +105,17 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 			continue
 		}
 		bcSvc.logger.Info("Found repositories", "count", len(repos))
+		devDRepos := []dtos.DevDRepo{}
 		for _, repo := range repos {
+			devDRepos = append(devDRepos, dtos.DevDRepo{
+				Slug:     repo.Slug,
+				Name:     repo.Name,
+				ID:       repo.ID,
+				IsPublic: !repo.IsPrivate,
+				Link:     repo.Links.HTML.Href,
+				Commits:  []dtos.DevDCommit{},
+				Prs:      []dtos.DevDPullRequest{},
+			})
 			bcSvc.logger.Info("Repository", "name", repo.Name)
 			if existingRepoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err == nil || errors.Is(err, sql.ErrNoRows) {
 				bcSvc.logger.Debug("Repository found in database", "name", existingRepoSyncAudit.RepoName)
@@ -119,6 +131,7 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 			if _, err := bcSvc.dbQuerier.CreateRepoSyncAudit(context.Background(), dbgen.CreateRepoSyncAuditParams{
 				ID:                 repo.Slug,
 				RepoName:           repo.Name,
+				WorkspaceSlug:      workspace.Slug,
 				SuccessfulSyncTime: sql.NullTime{Valid: false},
 				Success:            false,
 				ErrorContext:       sql.NullString{Valid: false},
@@ -126,6 +139,11 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 				bcSvc.logger.Error("Error creating repo sync audit", "error", err)
 				return err
 			}
+		}
+
+		if err := bcSvc.dataRelayer.SendCollectedData(devDRepos, url.Values{}); err != nil {
+			bcSvc.logger.Error("Error sending pull data to data relayer", "error", err)
+			return err
 		}
 	}
 
@@ -135,10 +153,97 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 
 func (bcSvc *BitbucketCloudSvc) GitActivityPull() error {
 	bcSvc.logger.Info("Pulling Git activity from Bitbucket Cloud...")
-	// Simulate pulling Git activity
-	// In a real implementation, this would involve making API calls to Bitbucket Cloud
-	// to pull the Git activity and store them in the state manager.
+	savedRepos, err := bcSvc.getAllActiveRepoSyncAudits()
+	if err != nil {
+		bcSvc.logger.Error("Error getting all active repo sync audits", "error", err)
+		return err
+	}
+	bcSvc.logger.Info("Found active repo sync audits", "count", len(savedRepos))
+	for _, repoSyncAudit := range savedRepos {
+		bcSvc.logger.Info("Repo sync audit", "repoName", repoSyncAudit.RepoName)
+
+		currentSyncTime := time.Now()
+		if err := bcSvc.syncGitActivityForRepo(repoSyncAudit); err != nil {
+			bcSvc.logger.Error("Error syncing Git activity for repo", "error", err)
+
+			repoSyncAudit.Success = false
+			repoSyncAudit.ErrorContext = sql.NullString{String: err.Error(), Valid: true}
+			repoSyncAudit.UpdatedAt = currentSyncTime
+			if _, err := bcSvc.dbQuerier.UpdateRepoSyncAudit(context.Background(), dbgen.UpdateRepoSyncAuditParams{
+				ID:                 repoSyncAudit.ID,
+				RepoName:           repoSyncAudit.RepoName,
+				WorkspaceSlug:      repoSyncAudit.WorkspaceSlug,
+				SuccessfulSyncTime: sql.NullTime{Time: currentSyncTime, Valid: true},
+				Success:            false,
+				ErrorContext:       sql.NullString{String: err.Error(), Valid: true},
+			}); err != nil {
+				bcSvc.logger.Error("Error updating repo sync audit", "error", err)
+				return err
+			}
+		} else {
+			// Send success event to data relayer
+			repoSyncAudit.Success = true
+			repoSyncAudit.ErrorContext = sql.NullString{Valid: false}
+			repoSyncAudit.UpdatedAt = currentSyncTime
+			if _, err := bcSvc.dbQuerier.UpdateRepoSyncAudit(context.Background(), dbgen.UpdateRepoSyncAuditParams{
+				ID:                 repoSyncAudit.ID,
+				RepoName:           repoSyncAudit.RepoName,
+				WorkspaceSlug:      repoSyncAudit.WorkspaceSlug,
+				SuccessfulSyncTime: sql.NullTime{Time: currentSyncTime, Valid: true},
+				Success:            true,
+				ErrorContext:       sql.NullString{Valid: false},
+			}); err != nil {
+				bcSvc.logger.Error("Error updating repo sync audit", "error", err)
+				return err
+			}
+		}
+	}
+
 	bcSvc.logger.Info("Git activity pulled successfully.")
+	return nil
+}
+
+func (bcSvc *BitbucketCloudSvc) getAllActiveRepoSyncAudits() ([]dbgen.RepositorySyncAudit, error) {
+	var repoSyncAudits []dbgen.RepositorySyncAudit
+	limit := 100
+	for {
+		repoSyncAuditsPerPage, err := bcSvc.dbQuerier.ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAt(context.Background(), dbgen.ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAtParams{
+			Offset: int64(len(repoSyncAudits)),
+			Limit:  100,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error getting paginated repo sync audits: %w", err)
+		}
+		repoSyncAudits = append(repoSyncAudits, repoSyncAuditsPerPage...)
+		if len(repoSyncAuditsPerPage) < limit {
+			break
+		}
+	}
+	return repoSyncAudits, nil
+}
+
+func (bcSvc *BitbucketCloudSvc) syncGitActivityForRepo(repoSyncAudit dbgen.RepositorySyncAudit) error {
+	var repoError map[string]any = map[string]any{}
+
+	fetchedPRs, err := bcSvc.apiClient.GetPullRequestsByRepository(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, bcSvc.dataRelayer.SendPullError)
+	if err != nil {
+		repoError["pullRequestError"] = err
+	}
+
+	devDPRs := []dtos.DevDPullRequest{}
+	for _, bBktCloudPr := range fetchedPRs {
+		devDPRs = append(devDPRs, dtos.DevDPullRequest{
+			ID:          bBktCloudPr.ID,
+			Title:       bBktCloudPr.Title,
+			Description: "",
+			State:       bBktCloudPr.State,
+		})
+	}
+
+	bcSvc.logger.Info("Found pull requests", "count", len(fetchedPRs))
+	for _, pullRequest := range fetchedPRs {
+		bcSvc.logger.Info("Pull request", "title", pullRequest.Title)
+	}
 	return nil
 }
 

@@ -11,8 +11,18 @@ type BBktCloudWorkspace struct {
 }
 
 type BBktCloudRepository struct {
-	Slug string `json:"slug"`
-	Name string `json:"name"`
+	Slug      string           `json:"slug"`
+	Name      string           `json:"name"`
+	ID        string           `json:"uuid"`
+	IsPrivate bool             `json:"is_private"`
+	Links     BBktCloudLinks `json:"links"`
+}
+
+type BBktCloudLinks struct {
+	HTML BBktCloudLink `json:"html"`
+}
+type BBktCloudLink struct {
+	Href string `json:"href"`
 }
 
 type BBktCloudPullRequest struct {
