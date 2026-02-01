@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bluelock-go/config"
-	"github.com/bluelock-go/integrations/git/gitdtos"
+	"github.com/bluelock-go/integrations/git/dtos"
 	"github.com/bluelock-go/integrations/relay"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
@@ -105,16 +105,16 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 			continue
 		}
 		bcSvc.logger.Info("Found repositories", "count", len(repos))
-		devDRepos := []gitdtos.BLRepo{}
+		devDRepos := []dtos.DevDRepo{}
 		for _, repo := range repos {
-			devDRepos = append(devDRepos, gitdtos.BLRepo{
+			devDRepos = append(devDRepos, dtos.DevDRepo{
 				Slug:     repo.Slug,
 				Name:     repo.Name,
 				ID:       repo.ID,
 				IsPublic: !repo.IsPrivate,
 				Link:     repo.Links.HTML.Href,
-				Commits:  []gitdtos.BLCommit{},
-				Prs:      []gitdtos.BLPullRequest{},
+				Commits:  []dtos.DevDCommit{},
+				Prs:      []dtos.DevDPullRequest{},
 			})
 			bcSvc.logger.Info("Repository", "name", repo.Name)
 			if existingRepoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err == nil || errors.Is(err, sql.ErrNoRows) {
@@ -222,70 +222,22 @@ func (bcSvc *BitbucketCloudSvc) getAllActiveRepoSyncAudits() ([]dbgen.Repository
 	return repoSyncAudits, nil
 }
 
-func (bcSvc *BitbucketCloudSvc) syncGitActivityForRepo(repoSyncAudit dbgen.RepositorySyncAudit) *gitdtos.BLRepoError {
-	repoError := &gitdtos.BLRepoError{}
-	{
-		var prError map[string]any = map[string]any{}
-		fetchedPRs, err := bcSvc.apiClient.GetPullRequestsByRepository(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, bcSvc.dataRelayer.SendPullError)
-		if err != nil {
-			repoError.PrFetchError = err.Error()
-		}
+func (bcSvc *BitbucketCloudSvc) syncGitActivityForRepo(repoSyncAudit dbgen.RepositorySyncAudit) error {
+	var repoError map[string]any = map[string]any{}
 
-		devDPRs := []dtos.BLPullRequest{}
-		prErrors := []map[string]any{}
-		for _, bBktCloudPr := range fetchedPRs {
-			var perPrError map[string]any = map[string]any{}
+	fetchedPRs, err := bcSvc.apiClient.GetPullRequestsByRepository(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, bcSvc.dataRelayer.SendPullError)
+	if err != nil {
+		repoError["pullRequestError"] = err
+	}
 
-			fetchedPrCommits, err := bcSvc.apiClient.GetPullRequestCommits(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, bBktCloudPr.ID, bcSvc.dataRelayer.SendPullError)
-			if err != nil {
-				perPrError["commitFetchError"] = err
-			}
-
-			devDCommits := []dtos.BLCommit{}
-			for _, commit := range fetchedPrCommits {
-				devDCommits = append(devDCommits, dtos.BLCommit{
-					ID:                 commit.Hash,
-					Message:            commit.Message,
-					Committer:          convertBBktCloudActorToDevDActor(commit.Author),
-					CommitterTimestamp: commit.Date,
-					ChangedFiles:       []dtos.BLChangedFile{},
-				})
-			}
-
-			isOpen := bBktCloudPr.State == string(BBktCloudPullRequestStateOpen)
-			reviewers := make([]dtos.BLActor, len(bBktCloudPr.Reviewers))
-			for i, reviewer := range bBktCloudPr.Reviewers {
-				reviewers[i] = convertBBktCloudActorToDevDActor(reviewer)
-			}
-			devDPR := dtos.BLPullRequest{
-				ID:           bBktCloudPr.ID,
-				Title:        bBktCloudPr.Title,
-				Description:  bBktCloudPr.Description,
-				State:        bBktCloudPr.State,
-				Open:         isOpen,
-				Closed:       !isOpen,
-				CreatedDate:  bBktCloudPr.CreatedOn,
-				UpdatedDate:  bBktCloudPr.UpdatedOn,
-				SourceBranch: bBktCloudPr.Source.Branch.Name,
-				TargetBranch: bBktCloudPr.Destination.Branch.Name,
-				Author:       convertBBktCloudActorToDevDActor(bBktCloudPr.Author),
-				Reviewers:    reviewers,
-				CommentCount: bBktCloudPr.CommentCount,
-				Link:         bBktCloudPr.Links.HTML.Href,
-				PrCommits:    devDCommits,
-			}
-			devDPRs = append(devDPRs, devDPR)
-
-			if len(perPrError) > 0 {
-				prErrors = append(prErrors, perPrError)
-			}
-		}
-		if len(prErrors) > 0 {
-			prError[""] = prErrors
-		}
-		if len(prError) > 0 {
-			repoError["prErrors"] = prError
-		}
+	devDPRs := []dtos.DevDPullRequest{}
+	for _, bBktCloudPr := range fetchedPRs {
+		devDPRs = append(devDPRs, dtos.DevDPullRequest{
+			ID:          bBktCloudPr.ID,
+			Title:       bBktCloudPr.Title,
+			Description: "",
+			State:       bBktCloudPr.State,
+		})
 	}
 
 	bcSvc.logger.Info("Found pull requests", "count", len(fetchedPRs))
@@ -293,15 +245,6 @@ func (bcSvc *BitbucketCloudSvc) syncGitActivityForRepo(repoSyncAudit dbgen.Repos
 		bcSvc.logger.Info("Pull request", "title", pullRequest.Title)
 	}
 	return nil
-}
-
-func convertBBktCloudActorToDevDActor(bBktCloudActor BBKtCloudActor) dtos.BLActor {
-	return dtos.BLActor{
-		ID:           bBktCloudActor.Raw,
-		Name:         bBktCloudActor.Raw,
-		DisplayName:  bBktCloudActor.Raw,
-		EmailAddress: bBktCloudActor.Raw,
-	}
 }
 
 var bitbucketCloudSvc = di.NewThreadSafeSingleton(func() *BitbucketCloudSvc {

@@ -1,7 +1,5 @@
 package bitbucketcloud
 
-import "time"
-
 type BBktCloudPaginatedResponse[T any] struct {
 	Values []T    `json:"values"`
 	Next   string `json:"next"`
@@ -13,10 +11,10 @@ type BBktCloudWorkspace struct {
 }
 
 type BBktCloudRepository struct {
-	Slug      string         `json:"slug"`
-	Name      string         `json:"name"`
-	ID        string         `json:"uuid"`
-	IsPrivate bool           `json:"is_private"`
+	Slug      string           `json:"slug"`
+	Name      string           `json:"name"`
+	ID        string           `json:"uuid"`
+	IsPrivate bool             `json:"is_private"`
 	Links     BBktCloudLinks `json:"links"`
 }
 
@@ -28,52 +26,15 @@ type BBktCloudLink struct {
 }
 
 type BBktCloudPullRequest struct {
-	ID           int                `json:"id"`
-	Title        string             `json:"title"`
-	Description  string             `json:"description"`
-	State        string             `json:"state"`
-	CreatedOn    time.Time          `json:"created_on"`
-	UpdatedOn    time.Time          `json:"updated_on"`
-	ClosedOn     time.Time          `json:"closed_on"`
-	Author       BBKtCloudActor     `json:"author"`
-	Reviewers    []BBKtCloudActor   `json:"reviewers"`
-	Source       BBktCloudBranchRef `json:"source"`
-	Destination  BBktCloudBranchRef `json:"destination"`
-	CommentCount int                `json:"comment_count"`
-	Links        BBktCloudLinks     `json:"links"`
-	Draft        bool               `json:"draft"`
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+	State string `json:"state"`
 }
 
-type BBktCloudPullRequestState string
-
-const (
-	BBktCloudPullRequestStateOpen       BBktCloudPullRequestState = "OPEN"
-	BBktCloudPullRequestStateMerged     BBktCloudPullRequestState = "MERGED"
-	BBktCloudPullRequestStateDeclined   BBktCloudPullRequestState = "DECLINED"
-	BBktCloudPullRequestStateSuperseded BBktCloudPullRequestState = "SUPERSEDED"
-)
-
-type BBktCloudBranchRef struct {
-	Branch     BBktCloudBranch     `json:"branch"`
-	Commit     BBktCloudCommit     `json:"commit"`
-	Repository BBktCloudRepository `json:"repository"`
-}
-
-type BBktCloudBranch struct {
-	Name string `json:"name"`
-}
-
-type BBCloudSlimCommit struct {
-	Hash  string         `json:"hash"`
-	Links BBktCloudLinks `json:"links"`
-}
 type BBktCloudCommit struct {
-	Hash    string              `json:"hash"`
-	Message string              `json:"message"`
-	Author  BBKtCloudActor      `json:"author"`
-	Date    time.Time           `json:"date"`
-	Links   BBktCloudLinks      `json:"links"`
-	Parents []BBCloudSlimCommit `json:"parents"`
+	Hash    string         `json:"hash"`
+	Message string         `json:"message"`
+	Author  BBKtCloudActor `json:"author"`
 }
 
 type BBKtCloudActor struct {

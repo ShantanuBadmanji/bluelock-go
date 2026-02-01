@@ -248,37 +248,6 @@ func (c *Client) GetPullRequestsByRepository(workspace, repository string, sendE
 	return pullRequests, nil
 }
 
-func (c *Client) GetPullRequestCommits(workspace, repository string, pullRequestID int, sendErrorLogCallback func(payload interface{}, queryParams url.Values) error) ([]BBktCloudCommit, error) {
-	commits := []BBktCloudCommit{}
-	pageLen := 100
-
-	url := fmt.Sprintf("%s/repositories/%s/%s/pullrequests/%d/commits?pagelen=%d", c.baseURL, workspace, repository, pullRequestID, pageLen)
-
-	for len(url) > 0 {
-		response, err := c.HandleRequestWithRetries(c.getRequestCallback(url, sendErrorLogCallback))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get pull request commits for repository %s/%s: %w", workspace, repository, err)
-		}
-
-		defer response.Body.Close()
-
-		var commitResponse BBktCloudPaginatedResponse[BBktCloudCommit]
-		if err := json.NewDecoder(response.Body).Decode(&commitResponse); err != nil {
-			return commits, fmt.Errorf("failed to decode commits response for repository %s/%s: %w", workspace, repository, err)
-		}
-
-		commits = append(commits, commitResponse.Values...)
-
-		url = commitResponse.Next
-		if url == "" {
-			c.logger.Info(fmt.Sprintf("No more pages to fetch for commits in pull request %d in repository %s/%s.", pullRequestID, workspace, repository))
-			break
-		}
-	}
-
-	return commits, nil
-}
-
 var client = di.NewThreadSafeSingleton(func() *Client {
 	customLogger := shared.AcquireCustomLogger()
 	stateManager := statemanager.AcquireStateManager()
