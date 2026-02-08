@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/bluelock-go/config"
-	"github.com/bluelock-go/integrations/git/dtos"
+	"github.com/bluelock-go/integrations/git/gitdtos"
 	"github.com/bluelock-go/integrations/relay"
 	"github.com/bluelock-go/shared"
 	"github.com/bluelock-go/shared/auth"
 	"github.com/bluelock-go/shared/auth/credservice"
+	"github.com/bluelock-go/shared/customerrors"
 	"github.com/bluelock-go/shared/database/dbsetup"
 	dbgen "github.com/bluelock-go/shared/database/generated"
 	"github.com/bluelock-go/shared/di"
@@ -69,13 +70,19 @@ func (bcSvc *BitbucketCloudSvc) RunJob() error {
 	bcSvc.logger.Info("Bitbucket Cloud job started...")
 
 	if err := bcSvc.RepoPull(); err != nil {
-		bcSvc.logger.Error("Error pulling repositories from Bitbucket Cloud", "error", err)
-		return err
+		wrappedErr := fmt.Errorf("error pulling repositories from Bitbucket Cloud: %w", err)
+		bcSvc.logger.Error(wrappedErr.Error())
+		if len(err.CriticalErrors) > 0 {
+			return wrappedErr
+		}
 	}
 
 	if err := bcSvc.GitActivityPull(); err != nil {
-		bcSvc.logger.Error("Error pulling Git activity from Bitbucket Cloud", "error", err)
-		return err
+		wrappedErr := fmt.Errorf("error pulling Git activity from Bitbucket Cloud: %w", err)
+		bcSvc.logger.Error(wrappedErr.Error())
+		if len(err.CriticalErrors) > 0 {
+			return wrappedErr
+		}
 	}
 
 	time.Sleep(time.Second * 5)
@@ -83,49 +90,88 @@ func (bcSvc *BitbucketCloudSvc) RunJob() error {
 	return nil
 }
 
-func (bcSvc *BitbucketCloudSvc) RepoPull() error {
+func (bcSvc *BitbucketCloudSvc) RepoPull() *gitdtos.BLRootErrorPayload {
+	rootErrorPayload := &gitdtos.BLRootErrorPayload{}
 	bcSvc.logger.Info("Pulling repositories from Bitbucket Cloud...")
 	workspaces, err := bcSvc.apiClient.GetWorkspaces(bcSvc.dataRelayer.SendPullError)
 	if err != nil {
-		bcSvc.logger.Error("Error pulling workspaces from Bitbucket Cloud", "error", err)
-		return err
+		wrappedErr := fmt.Errorf("error pulling workspaces from Bitbucket Cloud: %w", err)
+		bcSvc.logger.Error(wrappedErr.Error())
+		if errors.Is(err, customerrors.ErrCritical) {
+			rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+			return rootErrorPayload
+		}
+		rootErrorPayload.WorkspaceFetchError = wrappedErr.Error()
+		return rootErrorPayload
 	}
 	if len(workspaces) == 0 {
-		return fmt.Errorf("no workspaces found in Bitbucket Cloud")
+		rootErrorPayload.WorkspaceFetchError = "no workspaces found in Bitbucket Cloud"
+		return rootErrorPayload
 	}
 	bcSvc.logger.Info("Found workspaces", "count", len(workspaces))
+
+	// var expectedWorkspace *BBktCloudWorkspace = nil
+	// for _, workspace := range workspaces {
+	// 	if bcSvc.config.Integrations.BitbucketCloud.Workspace == workspace.Slug {
+	// 		expectedWorkspace = &workspace
+	// 	}
+	// }
+	// if expectedWorkspace == nil {
+	// 	wrappedErr := fmt.Errorf("unable to fetch %s workspace. make sure each token user is able to access the workspace: %v", bcSvc.config.Integrations.BitbucketCloud.Workspace, customerrors.ErrCritical)
+	// 	bcSvc.logger.Error(wrappedErr.Error())
+	// 	rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+	// 	return rootErrorPayload
+	// }
+
+	// for _, workspace := range []BBktCloudWorkspace{*expectedWorkspace} {
 	for _, workspace := range workspaces {
+		workspaceError := gitdtos.BLWorkspaceError{
+			WorkspaceSlug: workspace.Slug,
+		}
 		repos, err := bcSvc.apiClient.GetRepositoriesByWorkspace(workspace.Slug, bcSvc.dataRelayer.SendPullError)
 		if err != nil {
-			bcSvc.logger.Error("Error pulling repositories from Bitbucket Cloud", "error", err)
-			return err
+			wrappedErr := fmt.Errorf("error pulling repositories from Bitbucket Cloud: %w", err)
+			bcSvc.logger.Error(wrappedErr.Error())
+			if errors.Is(err, customerrors.ErrCritical) {
+				rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+				return rootErrorPayload
+			}
+			workspaceError.RepoFetchError = wrappedErr.Error()
 		}
+
 		if len(repos) == 0 {
-			bcSvc.logger.Warn("No repositories found in workspace", "workspace", workspace.Slug)
-			continue
+			errorMessage := fmt.Sprintf("no repositories found in workspace: %s", workspace.Slug)
+			bcSvc.logger.Error(errorMessage)
+			workspaceError.RepoFetchError = errorMessage
 		}
 		bcSvc.logger.Info("Found repositories", "count", len(repos))
-		devDRepos := []dtos.DevDRepo{}
+		devDRepos := []gitdtos.BLRepo{}
 		for _, repo := range repos {
-			devDRepos = append(devDRepos, dtos.DevDRepo{
+			repoError := gitdtos.BLRepoError{
+				RepoID: repo.Slug,
+			}
+			devDRepos = append(devDRepos, gitdtos.BLRepo{
 				Slug:     repo.Slug,
 				Name:     repo.Name,
 				ID:       repo.ID,
 				IsPublic: !repo.IsPrivate,
 				Link:     repo.Links.HTML.Href,
-				Commits:  []dtos.DevDCommit{},
-				Prs:      []dtos.DevDPullRequest{},
+				Commits:  []gitdtos.BLCommit{},
+				Prs:      []gitdtos.BLPullRequest{},
 			})
 			bcSvc.logger.Info("Repository", "name", repo.Name)
-			if existingRepoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err == nil || errors.Is(err, sql.ErrNoRows) {
+			if existingRepoSyncAudit, err := bcSvc.dbQuerier.GetRepoSyncAuditByID(context.Background(), repo.Slug); err == nil {
 				bcSvc.logger.Debug("Repository found in database", "name", existingRepoSyncAudit.RepoName)
 				continue
 			} else if errors.Is(err, sql.ErrNoRows) {
 				// If the error is a no rows error, create a new repo sync audit
 				bcSvc.logger.Info("Repository not found in database. Creating new repo sync audit", "name", repo.Name)
 			} else {
-				bcSvc.logger.Error("Error getting repo sync audit", "error", err)
-				return err
+				wrappedErr := fmt.Errorf("error getting repo sync audit for repo: %s: %w", repo.Slug, err)
+				bcSvc.logger.Error(wrappedErr.Error())
+				repoError.RepoProcessingError = wrappedErr.Error()
+				workspaceError.RepoErrors = append(workspaceError.RepoErrors, repoError)
+				continue
 			}
 
 			if _, err := bcSvc.dbQuerier.CreateRepoSyncAudit(context.Background(), dbgen.CreateRepoSyncAuditParams{
@@ -136,28 +182,45 @@ func (bcSvc *BitbucketCloudSvc) RepoPull() error {
 				Success:            false,
 				ErrorContext:       sql.NullString{Valid: false},
 			}); err != nil {
-				bcSvc.logger.Error("Error creating repo sync audit", "error", err)
-				return err
+				wrappedErr := fmt.Errorf("error creating repo sync audit for repo: %s: %w", repo.Slug, err)
+				bcSvc.logger.Error(wrappedErr.Error())
+				repoError.RepoProcessingError = wrappedErr.Error()
+				workspaceError.RepoErrors = append(workspaceError.RepoErrors, repoError)
+				continue
 			}
 		}
 
-		if err := bcSvc.dataRelayer.SendCollectedData(devDRepos, url.Values{}); err != nil {
-			bcSvc.logger.Error("Error sending pull data to data relayer", "error", err)
-			return err
+		if err := bcSvc.dataRelayer.SendCollectedData(devDRepos, url.Values(map[string][]string{"type": {"repo_pull"}})); err != nil {
+			wrappedErr := fmt.Errorf("error sending pull data to data relayer: %w", err)
+			bcSvc.logger.Error(wrappedErr.Error())
+			if errors.Is(err, customerrors.ErrCritical) {
+				rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+				return rootErrorPayload
+			}
+			workspaceError.WorkspaceProcessingError = wrappedErr.Error()
+		}
+
+		if !workspaceError.IsEmpty() {
+			rootErrorPayload.WorkspaceErrors = append(rootErrorPayload.WorkspaceErrors, workspaceError)
 		}
 	}
 
-	bcSvc.logger.Info("Repositories pulled successfully.")
+	if !rootErrorPayload.IsEmpty() {
+		return rootErrorPayload
+	}
 	return nil
 }
 
-func (bcSvc *BitbucketCloudSvc) GitActivityPull() error {
+func (bcSvc *BitbucketCloudSvc) GitActivityPull() *gitdtos.BLRootErrorPayload {
+	rootErrorPayload := &gitdtos.BLRootErrorPayload{}
 	bcSvc.logger.Info("Pulling Git activity from Bitbucket Cloud...")
 	savedRepos, err := bcSvc.getAllActiveRepoSyncAudits()
 	if err != nil {
-		bcSvc.logger.Error("Error getting all active repo sync audits", "error", err)
-		return err
+		wrappedErr := fmt.Errorf("error getting all active repo sync audits: %w", err)
+		rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+		return rootErrorPayload
 	}
+
 	bcSvc.logger.Info("Found active repo sync audits", "count", len(savedRepos))
 	for _, repoSyncAudit := range savedRepos {
 		bcSvc.logger.Info("Repo sync audit", "repoName", repoSyncAudit.RepoName)
@@ -165,7 +228,12 @@ func (bcSvc *BitbucketCloudSvc) GitActivityPull() error {
 		currentSyncTime := time.Now()
 		if err := bcSvc.syncGitActivityForRepo(repoSyncAudit); err != nil {
 			bcSvc.logger.Error("Error syncing Git activity for repo", "error", err)
-
+			wrappedErr := fmt.Errorf("error syncing Git activity for repo: %w", err)
+			bcSvc.logger.Error(wrappedErr.Error())
+			if errors.Is(err, customerrors.ErrCritical) {
+				rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+				return rootErrorPayload
+			}
 			repoSyncAudit.Success = false
 			repoSyncAudit.ErrorContext = sql.NullString{String: err.Error(), Valid: true}
 			repoSyncAudit.UpdatedAt = currentSyncTime
@@ -178,7 +246,9 @@ func (bcSvc *BitbucketCloudSvc) GitActivityPull() error {
 				ErrorContext:       sql.NullString{String: err.Error(), Valid: true},
 			}); err != nil {
 				bcSvc.logger.Error("Error updating repo sync audit", "error", err)
-				return err
+				wrappedErr := fmt.Errorf("error updating repo sync audit: %w", err)
+				rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+				return rootErrorPayload
 			}
 		} else {
 			// Send success event to data relayer
@@ -194,7 +264,9 @@ func (bcSvc *BitbucketCloudSvc) GitActivityPull() error {
 				ErrorContext:       sql.NullString{Valid: false},
 			}); err != nil {
 				bcSvc.logger.Error("Error updating repo sync audit", "error", err)
-				return err
+				wrappedErr := fmt.Errorf("error updating repo sync audit: %w", err)
+				rootErrorPayload.CriticalErrors = append(rootErrorPayload.CriticalErrors, wrappedErr)
+				return rootErrorPayload
 			}
 		}
 	}
@@ -209,7 +281,7 @@ func (bcSvc *BitbucketCloudSvc) getAllActiveRepoSyncAudits() ([]dbgen.Repository
 	for {
 		repoSyncAuditsPerPage, err := bcSvc.dbQuerier.ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAt(context.Background(), dbgen.ListActiveRepoSyncAuditOrderBySuccessfulSyncTimeCreatedAtParams{
 			Offset: int64(len(repoSyncAudits)),
-			Limit:  100,
+			Limit:  int64(limit),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("error getting paginated repo sync audits: %w", err)
@@ -223,28 +295,144 @@ func (bcSvc *BitbucketCloudSvc) getAllActiveRepoSyncAudits() ([]dbgen.Repository
 }
 
 func (bcSvc *BitbucketCloudSvc) syncGitActivityForRepo(repoSyncAudit dbgen.RepositorySyncAudit) error {
-	var repoError map[string]any = map[string]any{}
+	repoError := &gitdtos.BLRepoError{
+		RepoID: repoSyncAudit.ID,
+	}
+	devDRepo := gitdtos.BLRepo{
+		Slug: repoSyncAudit.ID,
+	}
+	var lastSuccessfulSyncTime time.Time
+	if repoSyncAudit.SuccessfulSyncTime.Valid && !repoSyncAudit.SuccessfulSyncTime.Time.IsZero() {
+		lastSuccessfulSyncTime = repoSyncAudit.SuccessfulSyncTime.Time
+	} else {
+		lastSuccessfulSyncTime = time.Now().AddDate(0, 0, -bcSvc.config.Defaults.DefaultDataPullDays)
+	}
+	// pull requests for the repository
+	{
+		fetchedPRs, err := bcSvc.apiClient.GetPullRequestsByRepository(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, lastSuccessfulSyncTime, bcSvc.dataRelayer.SendPullError)
+		if err != nil {
+			wrappedErr := fmt.Errorf("error fetching pull requests for repository: %s: %w", repoSyncAudit.ID, err)
+			bcSvc.logger.Error(wrappedErr.Error())
+			if errors.Is(err, customerrors.ErrCritical) {
+				return wrappedErr
+			}
+			repoError.PrFetchError = wrappedErr.Error()
+		}
 
-	fetchedPRs, err := bcSvc.apiClient.GetPullRequestsByRepository(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, bcSvc.dataRelayer.SendPullError)
-	if err != nil {
-		repoError["pullRequestError"] = err
+		devDPRs := []gitdtos.BLPullRequest{}
+		for _, bBktCloudPr := range fetchedPRs {
+			prError := gitdtos.BLPrError{
+				PrID: bBktCloudPr.ID,
+			}
+
+			fetchedPrCommits, err := bcSvc.apiClient.GetPullRequestCommits(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, bBktCloudPr.ID, bcSvc.dataRelayer.SendPullError)
+			if err != nil {
+				wrappedErr := fmt.Errorf("error fetching pull request commits for repository: %s: %w", repoSyncAudit.ID, err)
+				bcSvc.logger.Error(wrappedErr.Error())
+				if errors.Is(err, customerrors.ErrCritical) {
+					return wrappedErr
+				}
+				prError.CommitFetchError = wrappedErr.Error()
+			}
+
+			devDCommits := []gitdtos.BLCommit{}
+			for _, commit := range fetchedPrCommits {
+				devDCommits = append(devDCommits, gitdtos.BLCommit{
+					ID:                 commit.Hash,
+					Message:            commit.Message,
+					Committer:          convertBBktCloudUserToDevDActor(commit.Author.User, commit.Author.Raw),
+					CommitterTimestamp: commit.Date,
+					ChangedFiles:       []gitdtos.BLChangedFile{},
+				})
+			}
+
+			isOpen := bBktCloudPr.State == string(BBktCloudPullRequestStateOpen)
+			reviewers := make([]gitdtos.BLActor, len(bBktCloudPr.Reviewers))
+			for i, reviewer := range bBktCloudPr.Reviewers {
+				reviewers[i] = convertBBktCloudUserToDevDActor(reviewer, "")
+			}
+			devDPR := gitdtos.BLPullRequest{
+				ID:           bBktCloudPr.ID,
+				Title:        bBktCloudPr.Title,
+				Description:  bBktCloudPr.Description,
+				State:        bBktCloudPr.State,
+				Open:         isOpen,
+				Closed:       !isOpen,
+				CreatedDate:  bBktCloudPr.CreatedOn,
+				UpdatedDate:  bBktCloudPr.UpdatedOn,
+				SourceBranch: bBktCloudPr.Source.Branch.Name,
+				TargetBranch: bBktCloudPr.Destination.Branch.Name,
+				Author:       convertBBktCloudUserToDevDActor(bBktCloudPr.Author, ""),
+				Reviewers:    reviewers,
+				CommentCount: bBktCloudPr.CommentCount,
+				Link:         bBktCloudPr.Links.HTML.Href,
+				PrCommits:    devDCommits,
+			}
+			devDPRs = append(devDPRs, devDPR)
+
+			if !prError.IsEmpty() {
+				repoError.PrErrors = append(repoError.PrErrors, prError)
+			}
+		}
+		if len(devDPRs) > 0 {
+			devDRepo.Prs = devDPRs
+		}
 	}
 
-	devDPRs := []dtos.DevDPullRequest{}
-	for _, bBktCloudPr := range fetchedPRs {
-		devDPRs = append(devDPRs, dtos.DevDPullRequest{
-			ID:          bBktCloudPr.ID,
-			Title:       bBktCloudPr.Title,
-			Description: "",
-			State:       bBktCloudPr.State,
-		})
+	// commits for the repository
+	{
+		fetchedCommits, err := bcSvc.apiClient.GetCommitsByRepository(repoSyncAudit.WorkspaceSlug, repoSyncAudit.ID, lastSuccessfulSyncTime, bcSvc.dataRelayer.SendPullError)
+		if err != nil {
+			wrappedErr := fmt.Errorf("error fetching commits for repository: %s: %w", repoSyncAudit.ID, err)
+			bcSvc.logger.Error(wrappedErr.Error())
+			if errors.Is(err, customerrors.ErrCritical) {
+				return wrappedErr
+			}
+			repoError.CommitFetchError = wrappedErr.Error()
+		}
+
+		devDCommits := []gitdtos.BLCommit{}
+		for _, commit := range fetchedCommits {
+			devDCommits = append(devDCommits, gitdtos.BLCommit{
+				ID:                 commit.Hash,
+				Message:            commit.Message,
+				Committer:          convertBBktCloudUserToDevDActor(commit.Author.User, commit.Author.Raw),
+				CommitterTimestamp: commit.Date,
+				ChangedFiles:       []gitdtos.BLChangedFile{},
+			})
+		}
+		if len(devDCommits) > 0 {
+			devDRepo.Commits = devDCommits
+		}
 	}
 
-	bcSvc.logger.Info("Found pull requests", "count", len(fetchedPRs))
-	for _, pullRequest := range fetchedPRs {
-		bcSvc.logger.Info("Pull request", "title", pullRequest.Title)
+	if !devDRepo.IsEmpty() {
+		data := gitdtos.BLData{
+			Repos: []gitdtos.BLRepo{
+				devDRepo,
+			},
+			WorkspaceKey: repoSyncAudit.WorkspaceSlug,
+		}
+		if err := bcSvc.dataRelayer.SendCollectedData(data, url.Values(map[string][]string{"type": {"activity_pull"}})); err != nil {
+			return fmt.Errorf("error sending data to data relayer: %w", err)
+		}
 	}
+	if !repoError.IsEmpty() {
+		if err := bcSvc.dataRelayer.SendPullError(repoError, nil); err != nil {
+			return fmt.Errorf("error sending error logs to data relayer: %w", err)
+		}
+	}
+
 	return nil
+}
+
+func convertBBktCloudUserToDevDActor(bBktCloudActor BBKtCloudUser, emailAddress string) gitdtos.BLActor {
+	return gitdtos.BLActor{
+		ID:           bBktCloudActor.AccountID,
+		Name:         bBktCloudActor.DisplayName,
+		DisplayName:  bBktCloudActor.DisplayName,
+		EmailAddress: emailAddress,
+	}
 }
 
 var bitbucketCloudSvc = di.NewThreadSafeSingleton(func() *BitbucketCloudSvc {
